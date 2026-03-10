@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>018 — form constant</title>
+<style>
+  body { 
+    margin: 0; padding: 20px;
+    background: #0a0a0c; color: #888;
+    font-family: monospace; font-size: 12px;
+  }
+  button { 
+    padding: 8px 16px; margin: 10px 0;
+    background: #1a1a1a; color: #666; border: 1px solid #333;
+    cursor: pointer;
+  }
+  button:hover { color: #aaa; border-color: #555; }
+  #info { margin: 20px 0; color: #444; line-height: 1.6; }
+  canvas { display: block; margin: 20px 0; border: 1px solid #222; }
+</style>
+</head>
+<body>
+
+<h2>018 — form constant</h2>
+<p style="color: #555;">A sound made from the shape of dreaming. The four patterns the visual cortex generates when it has nothing to see, rendered as pure tone.</p>
+
+<div id="info">
+<p><strong>concept:</strong> Klüver's four form constants (lattice, cobweb, tunnel, spiral) as auditory forms.</p>
+<p><strong>how it works:</strong> Each pattern generates a frequency range and modulation pattern. Lattice = grid of tones. Cobweb = radial sine sweeps. Tunnel = narrowing frequency band. Spiral = returning tone at different pitch each time.</p>
+<p><strong>listen for:</strong> The texture changing as the form shifts. No melody — just the sound of the shape itself.</p>
+</div>
+
+<button id="play">play (30 sec)</button>
+<button id="stop">stop</button>
+
+<canvas id="canvas" width="600" height="200"></canvas>
+
+<script>
+const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+let oscillators = [];
+let gainNodes = [];
+let isPlaying = false;
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+function drawWaveform(timePoints) {
+  ctx.fillStyle = '#0a0a0c';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 0; i < timePoints.length; i++) {
+    const x = (i / timePoints.length) * canvas.width;
+    const y = canvas.height / 2 + timePoints[i] * canvas.height / 4;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+}
+
+function lattice(t, duration) {
+  // Grid of tones: regular, harmonic
+  const gridFreq = 100 + Math.floor(t * 8 / duration) * 50;
+  const osc = audioContext.createOscillator();
+  const gain = audioContext.createGain();
+  
+  osc.frequency.setValueAtTime(gridFreq, audioContext.currentTime);
+  osc.connect(gain);
+  gain.connect(audioContext.destination);
+  
+  gain.gain.setValueAtTime(0.02, audioContext.currentTime);
+  gain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.1);
+  
+  osc.start(audioContext.currentTime);
+  osc.stop(audioContext.currentTime + 0.1);
+  
+  return { x: (t / duration) * 600, y: 100 - (gridFreq - 100) / 2 };
+}
+
+function cobweb(t, duration) {
+  // Radial: sweeps from center
+  const phase = (t / duration) * Math.PI * 2;
+  const radius = 50 + Math.sin(phase * 3) * 40;
+  
+  const osc = audioContext.createOscillator();
+  const gain = audioContext.createGain();
+  
+  const baseFreq = 200;
+  osc.frequency.setValueAtTime(baseFreq + radius * 2, audioContext.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(baseFreq - radius, audioContext.currentTime + 0.15);
+  
+  osc.connect(gain);
+  gain.connect(audioContext.destination);
+  gain.gain.setValueAtTime(0.01, audioContext.currentTime);
+  gain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.15);
+  
+  osc.start(audioContext.currentTime);
+  osc.stop(audioContext.currentTime + 0.15);
+  
+  return { 
+    x: 300 + radius * Math.cos(phase),
+    y: 100 + radius * Math.sin(phase)
+  };
+}
+
+function tunnel(t, duration) {
+  // Narrowing: frequency band converges
+  const progress = t / duration;
+  const bandwidth = 200 * (1 - progress);
+  const centerFreq = 300 + progress * 100;
+  
+  const osc = audioContext.createOscillator();
+  const gain = audioContext.createGain();
+  
+  osc.frequency.setValueAtTime(centerFreq, audioContext.currentTime);
+  osc.connect(gain);
+  gain.connect(audioContext.destination);
+  
+  gain.gain.setValueAtTime(0.015 * (1 - progress), audioContext.currentTime);
+  gain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.08);
+  
+  osc.start(audioContext.currentTime);
+  osc.stop(audioContext.currentTime + 0.08);
+  
+  return { 
+    x: (progress) * 600,
+    y: 100 - bandwidth / 4
+  };
+}
+
+function spiral(t, duration) {
+  // Returning: same pitch each cycle but different octave
+  const cycles = (t / duration) * 4;
+  const cyclePortion = cycles % 1;
+  const octave = Math.floor(cycles);
+  
+  const baseFreq = 110 * Math.pow(2, octave % 2);
+  
+  const osc = audioContext.createOscillator();
+  const gain = audioContext.createGain();
+  
+  osc.frequency.setValueAtTime(baseFreq, audioContext.currentTime);
+  osc.frequency.linearRampToValueAtTime(baseFreq * 1.5, audioContext.currentTime + 0.12);
+  osc.frequency.linearRampToValueAtTime(baseFreq, audioContext.currentTime + 0.24);
+  
+  osc.connect(gain);
+  gain.connect(audioContext.destination);
+  
+  gain.gain.setValueAtTime(0.01, audioContext.currentTime);
+  gain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.24);
+  
+  osc.start(audioContext.currentTime);
+  osc.stop(audioContext.currentTime + 0.24);
+  
+  return {
+    x: 300 + Math.cos(cyclePortion * Math.PI * 2) * 100,
+    y: 100 + Math.sin(cyclePortion * Math.PI * 2) * 50 - octave * 15
+  };
+}
+
+async function play() {
+  if (isPlaying) return;
+  isPlaying = true;
+  
+  const duration = 30; // 30 seconds
+  const startTime = audioContext.currentTime;
+  const timePoints = [];
+  
+  // Play form constants in sequence
+  const latticeTime = duration * 0.25;
+  const cobwebTime = duration * 0.25;
+  const tunnelTime = duration * 0.25;
+  const spiralTime = duration * 0.25;
+  
+  let elapsed = 0;
+  
+  // Lattice phase
+  while (elapsed < latticeTime) {
+    lattice(elapsed, latticeTime);
+    timePoints.push(Math.sin(elapsed * 20) * 0.2);
+    elapsed += 0.05;
+    await new Promise(r => setTimeout(r, 30));
+  }
+  
+  // Cobweb phase
+  while (elapsed < latticeTime + cobwebTime) {
+    cobweb(elapsed - latticeTime, cobwebTime);
+    timePoints.push(Math.sin((elapsed - latticeTime) * 15) * 0.3);
+    elapsed += 0.075;
+    await new Promise(r => setTimeout(r, 45));
+  }
+  
+  // Tunnel phase
+  while (elapsed < latticeTime + cobwebTime + tunnelTime) {
+    tunnel(elapsed - latticeTime - cobwebTime, tunnelTime);
+    const progress = (elapsed - latticeTime - cobwebTime) / tunnelTime;
+    timePoints.push((1 - progress) * 0.4);
+    elapsed += 0.04;
+    await new Promise(r => setTimeout(r, 25));
+  }
+  
+  // Spiral phase
+  while (elapsed < duration) {
+    spiral(elapsed - latticeTime - cobwebTime - tunnelTime, spiralTime);
+    const spiralPhase = (elapsed - latticeTime - cobwebTime - tunnelTime) / spiralTime;
+    timePoints.push(Math.sin(spiralPhase * Math.PI * 2) * 0.2);
+    elapsed += 0.06;
+    await new Promise(r => setTimeout(r, 35));
+  }
+  
+  drawWaveform(timePoints);
+  isPlaying = false;
+}
+
+document.getElementById('play').addEventListener('click', play);
+document.getElementById('stop').addEventListener('click', () => {
+  isPlaying = false;
+  oscillators.forEach(o => { try { o.stop(); } catch(e) {} });
+  oscillators = [];
+});
+</script>
+
+</body>
+</html>

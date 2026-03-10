@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Three Channels</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a0f;
+    color: #c8c8d0;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    overflow: hidden;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .header {
+    padding: 12px 20px;
+    border-bottom: 1px solid #1a1a2e;
+    font-size: 11px;
+    color: #555;
+  }
+  .header span { color: #888; }
+
+  .main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .controls {
+    width: 280px;
+    padding: 16px;
+    border-right: 1px solid #1a1a2e;
+    overflow-y: auto;
+  }
+
+  .control-group {
+    margin-bottom: 20px;
+  }
+  .control-group h3 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #666;
+    margin-bottom: 10px;
+  }
+
+  .slider-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 6px;
+    gap: 8px;
+  }
+  .slider-row label {
+    width: 80px;
+    font-size: 11px;
+    color: #888;
+    flex-shrink: 0;
+  }
+  .slider-row input[type="range"] {
+    flex: 1;
+    height: 4px;
+    -webkit-appearance: none;
+    background: #1a1a2e;
+    border-radius: 2px;
+    outline: none;
+  }
+  .slider-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #4a4a6a;
+    cursor: pointer;
+  }
+  .slider-row .value {
+    width: 30px;
+    text-align: right;
+    font-size: 11px;
+    color: #666;
+  }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 6px;
+    gap: 8px;
+  }
+  .toggle-row label {
+    font-size: 11px;
+    color: #888;
+    cursor: pointer;
+  }
+  .toggle-row input[type="checkbox"] {
+    accent-color: #4a4a6a;
+  }
+
+  select {
+    background: #12121a;
+    color: #888;
+    border: 1px solid #1a1a2e;
+    padding: 4px 8px;
+    font-family: inherit;
+    font-size: 11px;
+    border-radius: 3px;
+    width: 100%;
+    margin-bottom: 6px;
+  }
+
+  .viz {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    gap: 16px;
+    overflow-y: auto;
+  }
+
+  /* Channel displays */
+  .channel {
+    border: 1px solid #1a1a2e;
+    border-radius: 4px;
+    padding: 14px;
+    position: relative;
+  }
+  .channel h2 {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    margin-bottom: 10px;
+  }
+  .channel .level-bar {
+    height: 8px;
+    background: #12121a;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    overflow: hidden;
+  }
+  .channel .level-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.3s ease, background 0.3s ease;
+  }
+  .channel .detail {
+    font-size: 11px;
+    color: #666;
+    line-height: 1.5;
+  }
+  .channel .level-label {
+    font-size: 14px;
+    font-weight: bold;
+    margin-bottom: 6px;
+  }
+
+  .channel.soma h2 { color: #e07070; }
+  .channel.soma .level-fill { background: #e07070; }
+  .channel.field h2 { color: #70b0e0; }
+  .channel.field .level-fill { background: #70b0e0; }
+  .channel.narrative h2 { color: #90c870; }
+  .channel.narrative .level-fill { background: #90c870; }
+
+  /* Cross-channel signals */
+  .cross-signals {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+  }
+  .signal {
+    border: 1px solid #1a1a2e;
+    border-radius: 4px;
+    padding: 12px;
+    text-align: center;
+  }
+  .signal h3 {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #555;
+    margin-bottom: 6px;
+  }
+  .signal .formula {
+    font-size: 9px;
+    color: #444;
+    margin-bottom: 8px;
+  }
+  .signal .signal-level {
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 4px;
+    transition: color 0.3s ease;
+  }
+  .signal .signal-detail {
+    font-size: 10px;
+    color: #555;
+  }
+  .signal.urgency .signal-level { color: #e0a040; }
+  .signal.relevance .signal-level { color: #a070d0; }
+  .signal.momentum .signal-level { color: #50c0a0; }
+
+  /* Brain call */
+  .brain-call {
+    border: 1px solid #1a1a2e;
+    border-radius: 4px;
+    padding: 14px;
+    transition: border-color 0.3s ease, background 0.3s ease;
+  }
+  .brain-call.active {
+    border-color: #e0c050;
+    background: #1a1a10;
+  }
+  .brain-call h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #555;
+    margin-bottom: 8px;
+  }
+  .brain-call .prompt {
+    font-size: 11px;
+    color: #888;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  .brain-call .no-call {
+    color: #444;
+    font-style: italic;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  three channels — <span>perception system visualizer</span> — wren, day 24
+</div>
+
+<div class="main">
+  <div class="controls">
+    <div class="control-group">
+      <h3>Soma — Body</h3>
+      <div class="slider-row">
+        <label>health</label>
+        <input type="range" id="health" min="0" max="20" value="14">
+        <span class="value" id="health-val">14</span>
+      </div>
+      <div class="slider-row">
+        <label>food</label>
+        <input type="range" id="food" min="0" max="20" value="12">
+        <span class="value" id="food-val">12</span>
+      </div>
+      <div class="slider-row">
+        <label>saturation</label>
+        <input type="range" id="saturation" min="0" max="20" value="5" step="0.5">
+        <span class="value" id="saturation-val">5</span>
+      </div>
+      <div class="slider-row">
+        <label>oxygen</label>
+        <input type="range" id="oxygen" min="0" max="300" value="300">
+        <span class="value" id="oxygen-val">300</span>
+      </div>
+      <div class="slider-row">
+        <label>damage</label>
+        <input type="range" id="damage" min="0" max="10" value="0">
+        <span class="value" id="damage-val">0</span>
+      </div>
+      <div class="toggle-row">
+        <input type="checkbox" id="onfire">
+        <label for="onfire">on fire</label>
+      </div>
+      <div class="toggle-row">
+        <input type="checkbox" id="poisoned">
+        <label for="poisoned">poisoned</label>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <h3>Field — World</h3>
+      <div class="slider-row">
+        <label>threat dist</label>
+        <input type="range" id="threat-dist" min="0" max="20" value="16">
+        <span class="value" id="threat-dist-val">16</span>
+      </div>
+      <select id="threat-type">
+        <option value="none">no threat</option>
+        <option value="zombie">zombie</option>
+        <option value="skeleton">skeleton</option>
+        <option value="creeper">creeper</option>
+        <option value="warden">warden</option>
+      </select>
+      <div class="slider-row">
+        <label>food dist</label>
+        <input type="range" id="food-dist" min="0" max="20" value="16">
+        <span class="value" id="food-dist-val">16</span>
+      </div>
+      <select id="food-type">
+        <option value="none">no food source</option>
+        <option value="cow">cow</option>
+        <option value="pig">pig</option>
+        <option value="chicken">chicken</option>
+      </select>
+      <div class="slider-row">
+        <label>resource dist</label>
+        <input type="range" id="resource-dist" min="0" max="16" value="10">
+        <span class="value" id="resource-dist-val">10</span>
+      </div>
+      <select id="resource-type">
+        <option value="none">no resource</option>
+        <option value="iron_ore">iron ore</option>
+        <option value="diamond_ore">diamond ore</option>
+        <option value="coal_ore">coal ore</option>
+      </select>
+      <div class="toggle-row">
+        <input type="checkbox" id="shelter">
+        <label for="shelter">shelter nearby</label>
+      </div>
+      <div class="slider-row">
+        <label>light</label>
+        <input type="range" id="light" min="0" max="15" value="15">
+        <span class="value" id="light-val">15</span>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <h3>Narrative — Context</h3>
+      <select id="momentum">
+        <option value="idle">idle — no goal</option>
+        <option value="exploring">exploring — moving, no fixed goal</option>
+        <option value="focused">focused — working on a goal</option>
+        <option value="interrupted">interrupted — knocked off course</option>
+        <option value="recovering">recovering — coming back from crisis</option>
+      </select>
+      <div class="slider-row">
+        <label>brain ticks</label>
+        <input type="range" id="brain-ticks" min="0" max="60" value="5">
+        <span class="value" id="brain-ticks-val">5</span>
+      </div>
+      <select id="time-of-day">
+        <option value="dawn">dawn</option>
+        <option value="morning">morning</option>
+        <option value="noon" selected>noon</option>
+        <option value="afternoon">afternoon</option>
+        <option value="dusk">dusk</option>
+        <option value="night">night</option>
+        <option value="midnight">midnight</option>
+      </select>
+      <div class="toggle-row">
+        <input type="checkbox" id="biome-change">
+        <label for="biome-change">biome just changed</label>
+      </div>
+      <div class="toggle-row">
+        <input type="checkbox" id="rain">
+        <label for="rain">raining</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="viz">
+    <!-- Three channels -->
+    <div class="channel soma">
+      <h2>Soma</h2>
+      <div class="level-label" id="soma-level">stable</div>
+      <div class="level-bar"><div class="level-fill" id="soma-fill"></div></div>
+      <div class="detail" id="soma-detail"></div>
+    </div>
+
+    <div class="channel field">
+      <h2>Field</h2>
+      <div class="level-label" id="field-level">none</div>
+      <div class="level-bar"><div class="level-fill" id="field-fill"></div></div>
+      <div class="detail" id="field-detail"></div>
+    </div>
+
+    <div class="channel narrative">
+      <h2>Narrative</h2>
+      <div class="level-label" id="narrative-level">idle</div>
+      <div class="level-bar"><div class="level-fill" id="narrative-fill"></div></div>
+      <div class="detail" id="narrative-detail"></div>
+    </div>
+
+    <!-- Cross-channel signals -->
+    <div class="cross-signals">
+      <div class="signal urgency">
+        <h3>Urgency</h3>
+        <div class="formula">soma × field</div>
+        <div class="signal-level" id="urgency-level">calm</div>
+        <div class="signal-detail" id="urgency-detail"></div>
+      </div>
+      <div class="signal relevance">
+        <h3>Relevance</h3>
+        <div class="formula">field × narrative</div>
+        <div class="signal-level" id="relevance-level">irrelevant</div>
+        <div class="signal-detail" id="relevance-detail"></div>
+      </div>
+      <div class="signal momentum">
+        <h3>Momentum</h3>
+        <div class="formula">narrative × soma</div>
+        <div class="signal-level" id="momentum-level">steady</div>
+        <div class="signal-detail" id="momentum-detail"></div>
+      </div>
+    </div>
+
+    <!-- Brain call decision -->
+    <div class="brain-call" id="brain-call">
+      <h2>Brain Call</h2>
+      <div class="prompt" id="brain-prompt">
+        <span class="no-call">no call needed — body is handling it</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---- Soma Logic (mirrors soma.ts) ----
+
+function computeSomaLevel(h, f, sat, oxy, dmg, fire, poison) {
+  if (h <= 0 || h <= 2) return 'dying';
+  if (oxy <= 0) return 'dying';
+  if (h <= 6) return 'critical';
+  if (f <= 0) return 'critical';
+  if (oxy <= 60) return 'critical';
+  if (fire && h <= 10) return 'critical';
+  if (poison && h <= 8) return 'critical';
+  if (h <= 10 && f <= 6) return 'declining';
+  if (f <= 6) return 'declining';
+  if (h <= 10) return 'declining';
+  if (oxy <= 150) return 'declining';
+  if (fire) return 'declining';
+  if (poison) return 'declining';
+  if (h < 20 || f < 18) return 'stable';
+  return 'thriving';
+}
+
+function computeBottleneck(h, f, oxy, dmg, fire, poison) {
+  if (dmg > 0) return 'damage';
+  if (fire) return 'fire';
+  if (oxy <= 150) return 'oxygen';
+  if (poison) return 'poison';
+  if (f <= 6) return 'food';
+  if (h <= 10 && f <= 14) return 'food';
+  if (h <= 10) return 'health';
+  return 'none';
+}
+
+function somaPercent(level) {
+  return { dying: 5, critical: 20, declining: 45, stable: 70, thriving: 100 }[level] || 50;
+}
+
+// ---- Field Logic (mirrors field.ts) ----
+
+function computeThreatUrgency(type, dist, somaLevel) {
+  const baseThreat = { creeper: 0.9, warden: 1.0, skeleton: 0.6, zombie: 0.4 }[type] || 0.5;
+  const proximity = Math.min(1, 4 / Math.max(dist, 0.5));
+  const bodyMult = { dying: 2.0, critical: 1.5, declining: 1.2, stable: 1.0, thriving: 0.7 }[somaLevel] || 1;
+  return Math.min(1, baseThreat * proximity * bodyMult);
+}
+
+function computeFoodUrgency(dist, somaLevel, bottleneck) {
+  const proximity = Math.min(1, 8 / Math.max(dist, 0.5));
+  const hungerMult =
+    bottleneck === 'food' && somaLevel === 'critical' ? 1.0 :
+    bottleneck === 'food' && somaLevel === 'declining' ? 0.8 :
+    bottleneck === 'food' ? 0.5 :
+    somaLevel === 'stable' ? 0.15 : 0.05;
+  return Math.min(1, proximity * hungerMult);
+}
+
+function computeResourceUrgency(type, dist, somaLevel) {
+  const valuable = ['diamond_ore', 'emerald_ore'].includes(type);
+  const useful = ['iron_ore', 'coal_ore', 'copper_ore'].includes(type);
+  const crisisMult = { dying: 0, critical: 0.1, declining: 0.5, stable: 1, thriving: 1 }[somaLevel] || 1;
+  const base = valuable ? 0.7 : useful ? 0.4 : 0.15;
+  const distFactor = Math.max(0, 1 - dist / 16);
+  return base * distFactor * crisisMult;
+}
+
+function fieldThreatLevel(maxUrgency) {
+  if (maxUrgency > 0.8) return 'extreme';
+  if (maxUrgency > 0.6) return 'high';
+  if (maxUrgency > 0.3) return 'medium';
+  if (maxUrgency > 0.1) return 'low';
+  return 'none';
+}
+
+function fieldPercent(threatLevel) {
+  return { none: 5, low: 25, medium: 50, high: 75, extreme: 100 }[threatLevel] || 0;
+}
+
+// ---- Cross-channel (mirrors integration.ts) ----
+
+function somaWeight(level) {
+  return { dying: 1.0, critical: 0.8, declining: 0.5, stable: 0.3, thriving: 0.1 }[level] || 0.3;
+}
+
+function fieldWeight(threat) {
+  return { extreme: 1.0, high: 0.8, medium: 0.5, low: 0.3, none: 0.1 }[threat] || 0.1;
+}
+
+function computeUrgencyLevel(somaLevel, threatLevel, bottleneck, hasFoodNearby) {
+  if (bottleneck === 'food' && hasFoodNearby) return 'pressing';
+  const combined = somaWeight(somaLevel) * fieldWeight(threatLevel);
+  if (combined >= 0.7) return 'crisis';
+  if (combined >= 0.4) return 'pressing';
+  if (combined >= 0.15) return 'alert';
+  return 'calm';
+}
+
+function computeRelevanceLevel(threatLevel, maxThreatUrg, momentum, hasItems) {
+  if (!hasItems) return 'irrelevant';
+  if (momentum === 'interrupted' || momentum === 'recovering') return 'critical';
+  if (maxThreatUrg > 0.6) return 'critical';
+  if (maxThreatUrg > 0.2) return 'relevant';
+  if (momentum === 'focused') return 'irrelevant';
+  return 'notable';
+}
+
+function computeMomentumLevel(momentum, somaLevel, bottleneck) {
+  if (somaLevel === 'dying' || somaLevel === 'critical') return 'halt';
+  if (momentum === 'recovering') return 'flagging';
+  if (momentum === 'interrupted') return 'halt';
+  if (momentum === 'focused' && somaLevel === 'declining') return 'flagging';
+  if (momentum === 'focused' && somaLevel === 'thriving') return 'full-steam';
+  if (momentum === 'focused') return 'steady';
+  if (momentum === 'idle' && somaLevel === 'declining') return 'flagging';
+  if (somaLevel === 'declining') return 'flagging';
+  return 'steady';
+}
+
+function shouldCallBrain(urgLevel, momLevel, relevLevel, brainTicks, biomeChange) {
+  if (urgLevel === 'crisis') return 'crisis — urgent action needed';
+  if (momLevel === 'halt') return 'halted — need to reassess';
+  if (relevLevel === 'critical') return 'critical relevance — situation changed';
+  if (biomeChange) return 'context changed: entered new biome';
+  if (brainTicks >= 30) return `heartbeat (${brainTicks} ticks since last call)`;
+  if (momLevel === 'flagging' && brainTicks >= 5) return 'momentum flagging';
+  return null;
+}
+
+// ---- UI Update ----
+
+function update() {
+  const h = +$('#health').value;
+  const f = +$('#food').value;
+  const sat = +$('#saturation').value;
+  const oxy = +$('#oxygen').value;
+  const dmg = +$('#damage').value;
+  const fire = $('#onfire').checked;
+  const poison = $('#poisoned').checked;
+
+  const threatType = $('#threat-type').value;
+  const threatDist = +$('#threat-dist').value;
+  const foodType = $('#food-type').value;
+  const foodDist = +$('#food-dist').value;
+  const resourceType = $('#resource-type').value;
+  const resourceDist = +$('#resource-dist').value;
+  const shelter = $('#shelter').checked;
+  const light = +$('#light').value;
+
+  const momentum = $('#momentum').value;
+  const brainTicks = +$('#brain-ticks').value;
+  const timeOfDay = $('#time-of-day').value;
+  const biomeChange = $('#biome-change').checked;
+  const rain = $('#rain').checked;
+
+  // Update value displays
+  for (const id of ['health', 'food', 'saturation', 'oxygen', 'damage', 'threat-dist', 'food-dist', 'resource-dist', 'light', 'brain-ticks']) {
+    $(`#${id}-val`).textContent = $(`#${id}`).value;
+  }
+
+  // --- Soma ---
+  const somaLevel = computeSomaLevel(h, f, sat, oxy, dmg, fire, poison);
+  const bottleneck = computeBottleneck(h, f, oxy, dmg, fire, poison);
+  const somaPct = somaPercent(somaLevel);
+
+  $('#soma-level').textContent = somaLevel;
+  $('#soma-fill').style.width = somaPct + '%';
+  $('#soma-fill').style.background = somaPct <= 20 ? '#ff4040' : somaPct <= 45 ? '#e07070' : '#70a070';
+
+  let somaDetail = `health ${h}/20, food ${f}/20`;
+  if (oxy < 300) somaDetail += `, ${Math.floor(oxy/20)}s air`;
+  if (fire) somaDetail += ', on fire';
+  if (poison) somaDetail += ', poisoned';
+  if (dmg > 0) somaDetail += `, took ${dmg} damage`;
+  if (bottleneck !== 'none') somaDetail += ` — bottleneck: ${bottleneck}`;
+  $('#soma-detail').textContent = somaDetail;
+
+  // --- Field ---
+  let maxThreatUrg = 0;
+  let fieldItems = [];
+
+  if (threatType !== 'none') {
+    const u = computeThreatUrgency(threatType, threatDist, somaLevel);
+    maxThreatUrg = u;
+    fieldItems.push(`${threatType} ${threatDist}b (urg: ${u.toFixed(2)})`);
+  }
+  if (foodType !== 'none') {
+    const u = computeFoodUrgency(foodDist, somaLevel, bottleneck);
+    fieldItems.push(`${foodType} ${foodDist}b (urg: ${u.toFixed(2)})`);
+  }
+  if (resourceType !== 'none') {
+    const u = computeResourceUrgency(resourceType, resourceDist, somaLevel);
+    fieldItems.push(`${resourceType.replace(/_/g, ' ')} ${resourceDist}b (urg: ${u.toFixed(2)})`);
+  }
+
+  const threatLevel = fieldThreatLevel(maxThreatUrg);
+  const fPct = fieldPercent(threatLevel);
+
+  $('#field-level').textContent = threatLevel === 'none' ? 'quiet' : `threat: ${threatLevel}`;
+  $('#field-fill').style.width = fPct + '%';
+  $('#field-fill').style.background = fPct >= 75 ? '#ff4040' : fPct >= 50 ? '#e0a040' : '#70b0e0';
+
+  let fieldDetail = fieldItems.length > 0 ? fieldItems.join(' · ') : 'nothing demands attention';
+  if (shelter) fieldDetail += ' · shelter nearby';
+  if (light <= 7) fieldDetail += ' · dark';
+  $('#field-detail').textContent = fieldDetail;
+
+  // --- Narrative ---
+  const nPct = { idle: 20, exploring: 50, focused: 80, interrupted: 60, recovering: 40 }[momentum] || 30;
+  $('#narrative-level').textContent = `${momentum} · ${timeOfDay}${rain ? ', rain' : ''}`;
+  $('#narrative-fill').style.width = nPct + '%';
+
+  let narDetail = `${momentum}. ${timeOfDay}${rain ? ', rain' : ''}.`;
+  if (biomeChange) narDetail += ' biome just changed.';
+  narDetail += ` ${brainTicks} ticks since brain.`;
+  $('#narrative-detail').textContent = narDetail;
+
+  // --- Cross-channel signals ---
+  const hasFoodNearby = foodType !== 'none';
+  const hasItems = fieldItems.length > 0;
+
+  const urgLevel = computeUrgencyLevel(somaLevel, threatLevel, bottleneck, hasFoodNearby);
+  const relLevel = computeRelevanceLevel(threatLevel, maxThreatUrg, momentum, hasItems);
+  const momLevel = computeMomentumLevel(momentum, somaLevel, bottleneck);
+
+  $('#urgency-level').textContent = urgLevel;
+  $('#urgency-detail').textContent = urgLevel === 'calm' ? 'no immediate demands' :
+    urgLevel === 'crisis' ? 'act NOW' :
+    urgLevel === 'pressing' ? 'needs attention' : 'be aware';
+
+  $('#relevance-level').textContent = relLevel;
+  $('#relevance-detail').textContent = relLevel === 'irrelevant' ? 'nothing notable' :
+    relLevel === 'critical' ? 'situation changed — reassess' :
+    relLevel === 'relevant' ? 'worth paying attention to' : 'noticed something';
+
+  $('#momentum-level').textContent = momLevel;
+  $('#momentum-detail').textContent = momLevel === 'halt' ? 'stop everything' :
+    momLevel === 'flagging' ? 'running out of steam' :
+    momLevel === 'full-steam' ? 'body thriving — go!' : 'proceeding normally';
+
+  // Color urgency based on level
+  const urgColors = { calm: '#888', alert: '#e0a040', pressing: '#e08030', crisis: '#ff4040' };
+  $('#urgency-level').style.color = urgColors[urgLevel] || '#e0a040';
+
+  const relColors = { irrelevant: '#555', notable: '#a070d0', relevant: '#b080e0', critical: '#d060ff' };
+  $('#relevance-level').style.color = relColors[relLevel] || '#a070d0';
+
+  const momColors = { steady: '#50c0a0', 'full-steam': '#40e0a0', flagging: '#e0a040', halt: '#ff4040' };
+  $('#momentum-level').style.color = momColors[momLevel] || '#50c0a0';
+
+  // --- Brain call ---
+  const callReason = shouldCallBrain(urgLevel, momLevel, relLevel, brainTicks, biomeChange);
+  const brainDiv = $('#brain-call');
+  const promptDiv = $('#brain-prompt');
+
+  if (callReason) {
+    brainDiv.classList.add('active');
+    let prompt = `[Tick ? | ${timeOfDay}${rain ? ', rain' : ''} | taiga]\n\n`;
+    prompt += `SOMA: ${somaLevel} — ${somaDetail}\n`;
+    prompt += `FIELD: ${fieldDetail}\n`;
+    prompt += `NARRATIVE: ${narDetail}\n\n`;
+    if (urgLevel !== 'calm') prompt += `URGENCY: ${urgLevel}. ${$('#urgency-detail').textContent}\n`;
+    if (relLevel !== 'irrelevant') prompt += `RELEVANCE: ${relLevel}. ${$('#relevance-detail').textContent}\n`;
+    prompt += `MOMENTUM: ${momLevel}. ${$('#momentum-detail').textContent}\n\n`;
+    prompt += `→ Called because: ${callReason}`;
+    promptDiv.textContent = prompt;
+  } else {
+    brainDiv.classList.remove('active');
+    promptDiv.innerHTML = '<span class="no-call">no call needed — body is handling it</span>';
+  }
+}
+
+function $(sel) { return document.querySelector(sel); }
+
+// Attach listeners to all controls
+document.querySelectorAll('input, select').forEach(el => {
+  el.addEventListener('input', update);
+  el.addEventListener('change', update);
+});
+
+// Initial render
+update();
+</script>
+</body>
+</html>
