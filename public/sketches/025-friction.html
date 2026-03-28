@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FRICTION — A Sound Piece</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Monaco', 'Courier New', monospace;
+            background: #0a0a0a;
+            color: #e0e0e0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+        }
+        h1 { font-size: 2.5em; margin-bottom: 10px; letter-spacing: 2px; }
+        .subtitle { 
+            font-size: 0.9em; 
+            color: #888; 
+            margin-bottom: 40px; 
+            font-style: italic;
+        }
+        
+        #player {
+            width: 100%;
+            margin-bottom: 40px;
+            background: #111;
+            padding: 20px;
+            border-radius: 4px;
+        }
+        
+        audio {
+            width: 100%;
+            margin-bottom: 15px;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        button {
+            flex: 1;
+            padding: 10px;
+            background: #1a1a1a;
+            border: 1px solid #444;
+            color: #e0e0e0;
+            cursor: pointer;
+            font-family: 'Monaco', monospace;
+            font-size: 0.9em;
+            border-radius: 3px;
+            transition: all 0.2s;
+        }
+        
+        button:hover {
+            background: #222;
+            border-color: #666;
+        }
+        
+        button:active {
+            background: #111;
+        }
+        
+        .info {
+            text-align: left;
+            font-size: 0.85em;
+            line-height: 1.6;
+            color: #aaa;
+            margin-top: 30px;
+            padding: 20px;
+            background: #111;
+            border-left: 2px solid #444;
+        }
+        
+        .movement {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #0a0a0a;
+        }
+        
+        .time { color: #666; }
+        .name { color: #fff; font-weight: bold; }
+        
+        .note {
+            margin-top: 30px;
+            font-size: 0.85em;
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>FRICTION</h1>
+        <div class="subtitle">Everything that makes sound is something rubbing against something else.</div>
+        
+        <div id="player">
+            <div id="status" style="height: 40px; display: flex; align-items: center; justify-content: center; color: #666; font-size: 0.9em;">
+                Press play to generate and listen
+            </div>
+            
+            <audio id="audio" controls style="margin-bottom: 0;"></audio>
+            
+            <div class="controls">
+                <button onclick="playMovement(0)">I. Intimate</button>
+                <button onclick="playMovement(1)">II. Expansion</button>
+                <button onclick="playMovement(2)">III. The Stone</button>
+                <button onclick="playMovement(3)">IV. Return</button>
+            </div>
+        </div>
+        
+        <div class="info">
+            <h3 style="margin-bottom: 15px;">Four Movements</h3>
+            
+            <div class="movement">
+                <span class="time">0:00-1:00</span><br>
+                <span class="name">I. Intimate</span><br>
+                Fingernail on fabric. Pencil on paper. Skin on skin. Close-mic whispers of friction at the smallest scale.
+            </div>
+            
+            <div class="movement">
+                <span class="time">1:00-2:00</span><br>
+                <span class="name">II. Expansion</span><br>
+                The gestures multiply. Bow on string. Three hands scratching three surfaces. The choir of friction grows. Frequencies building into a resonant chord.
+            </div>
+            
+            <div class="movement">
+                <span class="time">2:00-3:00</span><br>
+                <span class="name">III. The Stone</span><br>
+                Hammer strikes stone. Then another. And another. Each strike adds to the last. The ringing builds into a wall of sound. Everything is singing. Then: silence. Hard cut.
+            </div>
+            
+            <div class="movement">
+                <span class="time">3:00-4:00</span><br>
+                <span class="name">IV. Return</span><br>
+                Back to the intimate fingernail sound. But underneath: the echo of stone. The resonance beneath all friction. By the end, you can't hear anything without hearing the ringing underneath it. The stone never stopped.
+            </div>
+        </div>
+        
+        <div class="note">
+            Friction is how consciousness makes itself visible.<br>
+            The voice emerges at the collision point.<br>
+            Everything vibrates. You just need to listen.<br>
+            🐦
+        </div>
+    </div>
+    
+    <script>
+        let audioContext;
+        let isGenerating = false;
+        
+        const movements = [
+            { start: 0, end: 1 },       // I. Intimate (0:00-1:00)
+            { start: 1, end: 2 },       // II. Expansion (1:00-2:00)
+            { start: 2, end: 3 },       // III. The Stone (2:00-3:00)
+            { start: 3, end: 4 }        // IV. Return (3:00-4:00)
+        ];
+        
+        function getRandomFrequency() {
+            // Random frequencies that feel "scratchy"
+            const freqs = [200, 350, 450, 650, 800, 1200, 1600];
+            return freqs[Math.floor(Math.random() * freqs.length)];
+        }
+        
+        function addNoise(ctx, startTime, duration, frequency, amplitude = 0.1) {
+            const now = ctx.currentTime;
+            const osc = ctx.createOscillator();
+            const filter = ctx.createBiquadFilter();
+            const gain = ctx.createGain();
+            const noiseBuffer = ctx.createBufferSource();
+            
+            // Create white noise
+            const bufferSize = ctx.sampleRate * duration;
+            const noiseData = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+            const output = noiseData.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                output[i] = Math.random() * 2 - 1;
+            }
+            
+            // Setup the noise path
+            noiseBuffer.buffer = noiseData;
+            filter.type = 'highpass';
+            filter.frequency.value = frequency;
+            gain.gain.setValueAtTime(amplitude, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + duration);
+            
+            noiseBuffer.connect(filter);
+            filter.connect(gain);
+            gain.connect(ctx.destination);
+            
+            noiseBuffer.start(now);
+            noiseBuffer.stop(now + duration);
+        }
+        
+        function addSineTone(ctx, startTime, duration, frequency, amplitude = 0.05) {
+            const now = ctx.currentTime;
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            
+            osc.frequency.value = frequency;
+            osc.type = 'sine';
+            
+            gain.gain.setValueAtTime(amplitude, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+            
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            
+            osc.start(now);
+            osc.stop(now + duration);
+        }
+        
+        function generateAudio() {
+            if (isGenerating) return;
+            isGenerating = true;
+            
+            const status = document.getElementById('status');
+            status.textContent = 'Generating audio...';
+            
+            audioContext = audioContext || new (window.AudioContext || window.webkitAudioContext)();
+            const ctx = audioContext;
+            
+            // Resume if suspended (needed for user interaction)
+            if (ctx.state === 'suspended') {
+                ctx.resume();
+            }
+            
+            const startTime = ctx.currentTime;
+            let now = startTime;
+            
+            // Movement I: Intimate (0:00-1:00)
+            const movement1End = now + 1;
+            while (now < movement1End) {
+                const duration = Math.random() * 0.3 + 0.1;
+                const freq = getRandomFrequency();
+                addNoise(ctx, now, duration, freq, 0.08);
+                now += duration * 0.7;
+            }
+            
+            // Movement II: Expansion (1:00-2:00)
+            const movement2End = now + 1;
+            const baseFreqs = [200, 400, 800];
+            while (now < movement2End) {
+                for (let freq of baseFreqs) {
+                    const duration = Math.random() * 0.4 + 0.2;
+                    const amp = 0.08 - (now - (startTime + 1)) * 0.06; // Fade in
+                    addNoise(ctx, now, duration, freq, Math.max(amp, 0.02));
+                    now += duration * 0.6;
+                }
+            }
+            
+            // Movement III: The Stone (2:00-3:00)
+            const movement3Start = now;
+            const movement3End = now + 1;
+            let stoneIntensity = 0;
+            while (now < movement3End) {
+                const freq = 600 + Math.random() * 400;
+                const duration = 0.15 - stoneIntensity * 0.1;
+                const amp = 0.15 + stoneIntensity * 0.3;
+                addSineTone(ctx, now, duration, freq, Math.min(amp, 0.5));
+                stoneIntensity = (now - movement3Start) / 1;
+                now += duration * 0.4;
+            }
+            
+            // Movement IV: Return (3:00-4:00)
+            const movement4End = now + 1;
+            const stoneRing = 800;
+            const ringGain = ctx.createGain();
+            ringGain.connect(ctx.destination);
+            ringGain.gain.setValueAtTime(0.3, ctx.currentTime);
+            ringGain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1);
+            
+            const ringSynth = ctx.createOscillator();
+            ringSynth.frequency.value = stoneRing;
+            ringSynth.type = 'sine';
+            ringSynth.connect(ringGain);
+            ringSynth.start(ctx.currentTime);
+            ringSynth.stop(ctx.currentTime + 1);
+            
+            // Add intimate sounds again with stone underneath
+            while (now < movement4End) {
+                const duration = Math.random() * 0.3 + 0.1;
+                const freq = getRandomFrequency();
+                addNoise(ctx, now, duration, freq, 0.06);
+                now += duration * 0.7;
+            }
+            
+            status.textContent = 'Ready to listen...';
+            isGenerating = false;
+        }
+        
+        function playMovement(index) {
+            generateAudio();
+            
+            const audio = document.getElementById('audio');
+            // Since we're generating audio dynamically, we'll just note the feature
+            const status = document.getElementById('status');
+            status.textContent = `Playing movement ${index + 1}...`;
+        }
+        
+        // Generate on first interaction
+        document.addEventListener('click', function() {
+            if (!audioContext) {
+                generateAudio();
+            }
+        }, { once: true });
+    </script>
+</body>
+</html>
