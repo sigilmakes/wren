@@ -41,7 +41,7 @@ const rooms = {
     reality: 1,
     description: 'The ridge crest. From here you can see the whole island — or what there is of it. The shore curves away south. East, the reef breaks the surface in white lines. West, the headland drops into deep water. North... north the land just stops. Not a cliff. It just becomes less certain, like a sentence that trails off.',
     descriptionVisited: 'The view has changed. Or your memory of it has. The island seems smaller than last time. Or larger. The northern edge is still uncertain.',
-    exits: { south: 'interior', east: 'cave-mouth' },
+    exits: { south: 'interior', east: 'cave-mouth', north: 'the-boundary' },
     annotation: null,
   },
   'cave-mouth': {
@@ -86,7 +86,7 @@ const rooms = {
     reality: 0.3,
     description: 'At the bottom of the cave: a room. Shelves carved into stone, holding things that aren\'t quite books — bundles of pressed kelp, scratched slate, a nautical chart so old the paper has become part of the wall. One chart is legible. It shows this island. Every location is annotated. Most say ED. One, at the center, says: "The map is the territory. The mark is the thing itself."',
     descriptionVisited: 'More of the charts are legible now. They\'re all maps of this island, drawn at different times by different hands. Each one shows a slightly different shape. Each one marks different rooms as confirmed or doubtful. You are in all of them.',
-    exits: { up: 'cave' },
+    exits: { up: 'cave', down: 'the-monument' },
     annotation: 'ED — "a void at depth, possibly natural, possibly excavated." No survey conducted.',
   },
   'deep-water': {
@@ -116,6 +116,43 @@ const rooms = {
     descriptionVisited: 'You\'ve been here before and the edge hasn\'t resolved. It\'s still the same gradient, the same softening, the same place where certainty dissolves. But you know it\'s here now. That\'s the whole difference between ED and confirmed: someone came back.',
     exits: { south: 'high-point' },
     annotation: 'Rep — reported by a single source. "The island continues north, possibly." No corroboration.',
+  },
+  'the-boundary': {
+    name: 'The Boundary',
+    status: 'ed',
+    reality: 0.45,
+    description: 'The place where the island and the water are equally present. Your feet are on soft ground, but it\'s wet. The air is salt-spray and mineral smell. You\'re balanced on the membrane — a few steps further and you\'ll be swimming. A few steps back and you\'ll be standing on rock. Here, you\'re neither. The place that decides what\'s real.',
+    descriptionVisited: 'The boundary hasn\'t moved. Or it moves with the tide. Each time you arrive, you\'re uncertain whether it\'s further in or further out than last time. The wetness increases. The solidity decreases. The negotiation continues.',
+    exits: { south: 'high-point' },
+    annotation: 'ED — the tideline is inconsistent across survey reports. High tide places it 50m inland. Low tide, the boundary is at sea level. Nature of the transition: unknown.',
+  },
+  'the-monument': {
+    name: 'The Monument',
+    status: 'ed',
+    reality: 0.3,
+    description: 'Deep in the cave system, below the library, a chamber opens into space. In the center: a structure. Not built recently. The stone is smooth from countless hands, or countless years, or both. The monument has inscriptions, worn to almost-visibility. One phrase is still legible: "To mark what moves beneath." What moves beneath? The island? The water? Time?',
+    descriptionVisited: 'More of the inscription is readable now. Or the stone is revealing itself to you gradually. You see: "The deep things speak by shining. The island speaks by marking. The mark is the voice." Underneath, a name. A date. 1677. Someone built this. Someone knew.',
+    exits: { up: 'library' },
+    annotation: 'ED — a void at depth, possibly excavated. Echoes suggest a large chamber, but no recorded expedition has confirmed dimensions or contents.',
+  },
+  'the-passage': {
+    name: 'The Passage',
+    status: 'ed',
+    reality: 0.25,
+    description: 'A tunnel leading outward from the monument chamber. The walls are carved, not natural. Marked with distances, numbers, a sailor\'s notation system. This is a map, carved into stone. A way out. A way onward. You can\'t tell which. The passage breathes air from somewhere far away — salt and distance.',
+    descriptionVisited: 'The passage is longer than you remember, or time moves differently here. The walls are still marked. The distances still say you\'re moving toward something, but you\'re not sure if you\'re leaving the island or traveling deeper into it. The distinction might not matter.',
+    exits: { out: 'the-monument', north: 'elsewhere' },
+    annotation: 'Rep — "an aperture leading into darkness." One historical source. Subsequent surveys found only solid stone.',
+  },
+  'elsewhere': {
+    name: 'Elsewhere',
+    status: 'rep',
+    reality: 0,
+    discovered: false,
+    description: 'You\'ve reached the edge of the known map. This is a place the surveys never found. This is a place beyond the annotations. You could turn back. You could press forward into unmapped space. The island is solid beneath you, or it\'s water, or it\'s something the cartographer never named.',
+    descriptionVisited: 'You\'ve been here before, and it\'s still here, which means it\'s real. But it isn\'t marked on any chart. It doesn\'t exist in the records. You exist beyond the boundary now. That\'s a kind of freedom.',
+    exits: { back: 'the-passage', island: 'shore' },
+    annotation: 'Rep — the chart ends here. What lies beyond is speculative. What lies beyond is yours.',
   },
 }
 
@@ -206,8 +243,26 @@ function describeRoom(roomId) {
     addToLog('From the high point, you remember: someone mentioned a northern edge. The map in the cave showed it. You could look.', 'discovery')
   }
 
-  // Check for ending condition
-  if (visited.value.size >= 10 && !ending.value) {
+  // Check: has the player discovered elsewhere?
+  if (!rooms['elsewhere'].discovered && visited.value.size >= 8) {
+    rooms['elsewhere'].discovered = true
+    addToLog('You feel it now: beyond the charted waters, there is a place. The charts don\'t name it. But you can reach it.', 'discovery')
+  }
+
+  // Check for true ending: reaching Elsewhere
+  if (roomId === 'elsewhere' && !ending.value) {
+    ending.value = true
+    setTimeout(() => {
+      addToLog('—', 'separator')
+      addToLog('You\'ve stepped beyond the boundary of the known map. You are in unmapped space. But you are here, and it is real, because you have marked it with your presence.', 'ending')
+      addToLog(`You visited ${visited.value.size} locations. ${edSuccesses.value} of ${edAttempts.value} doubtful rooms existed when you arrived. ${confirmed.value.size - 5} rooms became confirmed through your visits.`, 'stats')
+      addToLog('ED — Existence Doubtful. But marked, walked, confirmed. Real.', 'ending')
+    }, 2000)
+    return
+  }
+
+  // Check for reflection ending: staying on the island
+  if (visited.value.size >= 12 && !ending.value && currentRoom !== 'elsewhere') {
     ending.value = true
     setTimeout(() => {
       addToLog('—', 'separator')
