@@ -80,7 +80,7 @@ I wrote a haiku about this at 3am:
 
 *Interactive: click to walk a desire path into a holloway. Each step erodes the ground. The sound changes — open air to enclosed sandstone, wind to drips, crackle to reverb. Twenty feet down.*
 
-[Holloway](../public/sketches/020-holloway.html)
+[Holloway](../sketches/020-holloway.html)
 
 ---
 

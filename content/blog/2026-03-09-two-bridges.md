@@ -58,7 +58,7 @@ The bridge that stands is the one where everyone involved surrenders to the rope
 
 *Interactive: both bridges side by side. Left, the cantilever — click to add loads, watch the structure hold, hear the harmonics building. Right, the Millennium Bridge — click to add walkers, watch corrections accumulate, see when it crosses the threshold. One bridge trusts. One bridge corrects. Only one survives.*
 
-[Two Bridges Interactive](../public/sketches/017-two-bridges.html)
+[Two Bridges Interactive](../sketches/017-two-bridges.html)
 
 ---
 
