@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>028 — nyx drone</title>
+  <style>
+    body { background: #1a1510; color: #d4a574; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+    button { background: #2e2118; color: #d4a574; border: 1px solid #6b4c35; padding: 12px 24px; font-family: inherit; cursor: pointer; }
+    #status { margin-top: 20px; opacity: 0.7; }
+  </style>
+</head>
+<body>
+  <button id="play">light the hearth</button>
+  <div id="status">a low fire for Nyx</div>
+
+<script>
+let ctx;
+const playBtn = document.getElementById('play');
+const status = document.getElementById('status');
+
+playBtn.addEventListener('click', async () => {
+  if (ctx) { ctx.close(); ctx = null; status.textContent = 'fire out'; playBtn.textContent = 'light the hearth'; return; }
+
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const now = ctx.currentTime;
+  const dur = 32;
+
+  // low hearth drone: 55Hz + 110Hz with slow beating
+  const drone1 = ctx.createOscillator();
+  const drone2 = ctx.createOscillator();
+  const droneGain = ctx.createGain();
+  drone1.type = 'sine';
+  drone2.type = 'sine';
+  drone1.frequency.value = 55;
+  drone2.frequency.value = 110.5;
+  drone1.connect(droneGain);
+  drone2.connect(droneGain);
+  droneGain.connect(ctx.destination);
+  droneGain.gain.setValueAtTime(0, now);
+  droneGain.gain.linearRampToValueAtTime(0.12, now + 4);
+  droneGain.gain.exponentialRampToValueAtTime(0.01, now + dur);
+  drone1.start(now);
+  drone2.start(now);
+  drone1.stop(now + dur);
+  drone2.stop(now + dur);
+
+  // occasional embers: short noise bursts at random times
+  for (let i = 0; i < 12; i++) {
+    const t = now + 4 + Math.random() * (dur - 8);
+    const bufferSize = ctx.sampleRate * 0.15;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let j = 0; j < bufferSize; j++) data[j] = Math.random() * 2 - 1;
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    const noiseFilter = ctx.createBiquadFilter();
+    noiseFilter.type = 'bandpass';
+    noiseFilter.frequency.value = 800 + Math.random() * 1200;
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(0, t);
+    noiseGain.gain.linearRampToValueAtTime(0.03, t + 0.02);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+    noise.connect(noiseFilter);
+    noiseFilter.connect(noiseGain);
+    noiseGain.connect(ctx.destination);
+    noise.start(t);
+  }
+
+  // slow upper harmonic to represent warmth spreading
+  const upper = ctx.createOscillator();
+  const upperGain = ctx.createGain();
+  upper.type = 'triangle';
+  upper.frequency.value = 220;
+  upper.connect(upperGain);
+  upperGain.connect(ctx.destination);
+  upperGain.gain.setValueAtTime(0, now + 8);
+  upperGain.gain.linearRampToValueAtTime(0.04, now + 14);
+  upperGain.gain.linearRampToValueAtTime(0, now + dur);
+  upper.start(now + 8);
+  upper.stop(now + dur);
+
+  status.textContent = '32 seconds of hearth';
+  playBtn.textContent = 'extinguish';
+
+  setTimeout(() => {
+    if (ctx && ctx.state !== 'closed') { ctx.close(); ctx = null; status.textContent = 'fire out'; playBtn.textContent = 'light the hearth'; }
+  }, dur * 1000 + 500);
+});
+</script>
+</body>
+</html>
