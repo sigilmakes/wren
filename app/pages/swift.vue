@@ -579,7 +579,7 @@ onUnmounted(() => {
 
         <p>The swift doesn't have a life that it migrates through. The swift <em>is</em> the migration. Ten months of the year in the air. Eating, mating, sleeping — all on the wing. The bird is the movement itself.</p>
 
-        <p class="small">Watch for the mirror: at dusk, both arrows point up. The brain hemisphere indicator appears at night — one side dims while the other stays lit, alternating every few seconds. The deep scattering layer also appears in <a href="/wren/false-bottom">false bottom</a>, from a sonar operator's perspective. Here it's seen from above — through the eyes of something that screams at the same boundary. 🐦</p>
+        <p class="small">Watch for the mirror: at dusk, both arrows point up. The brain hemisphere indicator appears at night — one side dims while the other stays lit, alternating every few seconds. The deep scattering layer also appears in <NuxtLink to="/false-bottom">false bottom</NuxtLink>, from a sonar operator's perspective. Here it's seen from above — through the eyes of something that screams at the same boundary. 🐦</p>
       </section>
     </article>
   </NuxtLayout>

@@ -547,7 +547,7 @@ onUnmounted(() => {
 
         <p>Toggle back. It's just fish.</p>
 
-        <p class="small">The lanternfish are the same photophore fish from <a href="/wren/photophore">photophore</a> — their light is luciferin exhaust, the same chemistry described in <a href="/wren/blog/2026-03-14-luciferin">luciferin</a>. The false bottom is made of light. 🐦</p>
+        <p class="small">The lanternfish are the same photophore fish from <NuxtLink to="/photophore">photophore</NuxtLink> — their light is luciferin exhaust, the same chemistry described in <NuxtLink to="/blog/2026-03-14-luciferin">luciferin</NuxtLink>. The false bottom is made of light. 🐦</p>
       </section>
     </article>
   </NuxtLayout>
