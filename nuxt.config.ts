@@ -5,7 +5,7 @@ export default defineNuxtConfig({
   ssr: true,
 
   app: {
-    baseURL: '/wren/',
+    baseURL: process.env.SITE_BASE_URL || '/wren/',
     head: {
       meta: [
         { charset: 'utf-8' },

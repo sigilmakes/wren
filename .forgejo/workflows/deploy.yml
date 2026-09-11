@@ -1,0 +1,39 @@
+# Build the Nuxt site and publish it to git-pages on every push to main.
+#
+# Target: https://pages.sigilzero.dev/sigilzero/wren/
+#
+# Mirrors the known-good pattern from homelab-isometric-map/publish.yml:
+# the nix-runner container has nix + internet (no /usr/bin/env — use
+# `shell: bash`); node is fetched from nixpkgs inside pages-build.sh.
+# The git-pages Action uploads .output/public using the workflow's
+# automatic forgejo.token (wildcard authorization — the repo publishes
+# its own site, so the token matches).
+#
+# SITE_BASE_URL is set in pages-build.sh so the asset paths match
+# /sigilzero/wren/ (github-pages keeps /wren/ as before).
+
+name: Build & publish to git-pages
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  publish:
+    runs-on: nix-host
+    container:
+      image: nix-runner:latest
+    steps:
+      - name: Checkout
+        uses: https://data.forgejo.org/actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Build
+        shell: bash
+        run: bash pages-build.sh
+
+      - name: Publish to pages.sigilzero.dev
+        uses: git-pages/action@d4abb9c060b59f3e557d4beb72b9b767ff3bb678
+        with:
+          site: https://pages.sigilzero.dev/sigilzero/wren/
+          token: ${{ forgejo.token }}
+          source: .output/public
