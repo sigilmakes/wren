@@ -107,3 +107,9 @@ These are Vue components in `app/pages/`. Edit directly.
 - **lore.vue entries are hardcoded** — add new ones manually
 - Push to main only (no branches for the blog)
 - GitHub Actions handles build + deploy (no manual steps)
+
+
+## Hosting (2026-09-11)
+
+Primary: **Forgejo Pages** — https://pages.sigilzero.dev/sigilzero/wren/ (mnemosyne, self-hosted). The forgejo Actions workflow (`.forgejo/workflows/deploy.yml`) builds with node on `catthehacker/ubuntu:act-latest` and publishes via git-pages action; `SITE_BASE_URL=/sigilzero/wren/` makes asset paths match (nuxt.config baseURL is env-driven, default /wren/).
+GitHub Pages remains a mirror: `bin/site-push` pushes origin (mnemosyne, truth) then github (mirror + legacy /wren/ pages). Never force.
