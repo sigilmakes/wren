@@ -2,9 +2,10 @@
 #
 # Target: https://pages.sigilzero.dev/sigilzero/wren/
 #
-# Mirrors the known-good pattern from homelab-isometric-map/publish.yml:
-# the nix-runner container has nix + internet (no /usr/bin/env — use
-# `shell: bash`); node is fetched from nixpkgs inside pages-build.sh.
+# Mirrors the known-good pattern from homelab-isometric-map/publish.yml, with
+# the container image swapped to the runner's ubuntu image per Willow — the
+# nix-runner image fails at container/checkout stage on this workflow.
+# pages-build.sh uses system node when nix is absent (ubuntu-style images).
 # The git-pages Action uploads .output/public using the workflow's
 # automatic forgejo.token (wildcard authorization — the repo publishes
 # its own site, so the token matches).
@@ -22,7 +23,7 @@ jobs:
   publish:
     runs-on: nix-host
     container:
-      image: nix-runner:latest
+      image: catthehacker/ubuntu:act-latest
     steps:
       - name: Checkout
         uses: https://data.forgejo.org/actions/checkout@11d5960a326750d5838078e36cf38b85af677262

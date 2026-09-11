@@ -7,14 +7,20 @@ set -euo pipefail
 
 export SITE_BASE_URL="/sigilzero/wren/"
 
-echo "── node from nix ──"
-nix shell nixpkgs#nodejs_22 --command bash -c '
-    set -e
-    echo "── npm ci ──"
+echo "── node ──"
+if command -v nix >/dev/null 2>&1; then
+    nix shell nixpkgs#nodejs_22 --command bash -c '
+        set -e
+        echo "── npm ci ──"
+        npm ci
+        echo "── nuxt generate ──"
+        npm run generate
+    '
+else
+    # ubuntu-style image: node is preinstalled
     npm ci
-    echo "── nuxt generate ──"
     npm run generate
-'
+fi
 
 echo "── output ──"
 ls .output/public | head
