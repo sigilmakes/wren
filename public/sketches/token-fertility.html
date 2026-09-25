@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>token fertility</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #0a0e27;
+            color: #e8d9c8;
+            font-family: 'Courier New', monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 600px;
+            text-align: center;
+        }
+        
+        h1 {
+            font-size: 18px;
+            margin-bottom: 10px;
+            letter-spacing: 2px;
+            color: #c4a47a;
+        }
+        
+        p {
+            font-size: 12px;
+            line-height: 1.6;
+            margin-bottom: 30px;
+            opacity: 0.8;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 30px;
+        }
+        
+        button {
+            padding: 12px 24px;
+            background: #3d2817;
+            border: 1px solid #c4a47a;
+            color: #e8d9c8;
+            font-family: 'Courier New', monospace;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        
+        button:hover {
+            background: #5a3d2a;
+            color: #ffd699;
+        }
+        
+        button:active {
+            transform: scale(0.98);
+        }
+        
+        .language {
+            padding: 8px 16px;
+            background: #1a1f3a;
+            border: 1px solid #3d4a6f;
+            margin: 5px;
+            font-size: 11px;
+            cursor: pointer;
+            border-radius: 3px;
+            transition: all 0.2s;
+        }
+        
+        .language:hover {
+            background: #2a2f4a;
+            border-color: #5a6a9f;
+        }
+        
+        .language.playing {
+            background: #4a5f7f;
+            border-color: #8a9fbf;
+            color: #ffd699;
+        }
+        
+        .info {
+            font-size: 11px;
+            margin-top: 20px;
+            opacity: 0.6;
+            line-height: 1.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>token fertility</h1>
+        <p>Every language has a cost. Listen to how the tokenizer hears different tongues.</p>
+        
+        <div class="controls">
+            <div>
+                <p style="margin: 0 0 10px 0; font-size: 11px; opacity: 0.7;">English (baseline)</p>
+                <button class="language" data-fertility="1.43" data-name="English">English 1.43</button>
+            </div>
+            <div>
+                <p style="margin: 0 0 10px 0; font-size: 11px; opacity: 0.7;">Cheap (related)</p>
+                <button class="language" data-fertility="1.59" data-name="French">French 1.59</button>
+                <button class="language" data-fertility="1.79" data-name="German">German 1.79</button>
+            </div>
+            <div>
+                <p style="margin: 0 0 10px 0; font-size: 11px; opacity: 0.7;">Expensive (distant)</p>
+                <button class="language" data-fertility="2.32" data-name="Russian">Russian 2.32</button>
+                <button class="language" data-fertility="3.28" data-name="Finnish">Finnish 3.28</button>
+            </div>
+            <div>
+                <p style="margin: 0 0 10px 0; font-size: 11px; opacity: 0.7;">Very expensive (alien)</p>
+                <button class="language" data-fertility="5.73" data-name="Greek">Greek 5.73</button>
+            </div>
+        </div>
+        
+        <button id="stop-button" style="margin-top: 20px; opacity: 0.5; cursor: not-allowed;">Stop</button>
+        
+        <div class="info">
+            <p>
+                <strong>What you're hearing:</strong><br>
+                Base tone (50Hz) represents the language's core.<br>
+                Higher harmonics = more tokens per word.<br>
+                Dead photoreceptors = noise floor (untrained tokens hallucinating).
+            </p>
+        </div>
+    </div>
+
+    <script>
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        let currentOscillators = [];
+        let isPlaying = false;
+
+        function playFertility(fertility, name) {
+            // Stop any current playback
+            stopSound();
+            
+            // Base frequency
+            const baseFreq = 50;
+            
+            // Calculate frequency based on fertility
+            // Higher fertility = higher pitch
+            const harmonic = 1 + (fertility - 1.4) / 5;
+            const mainFreq = baseFreq * harmonic;
+            
+            // Create oscillators
+            const osc1 = audioContext.createOscillator();
+            const osc2 = audioContext.createOscillator();
+            const noiseGain = audioContext.createGain();
+            const mainGain = audioContext.createGain();
+            
+            // Main tone
+            osc1.frequency.value = mainFreq;
+            osc1.type = 'sine';
+            mainGain.gain.setValueAtTime(0.3, audioContext.currentTime);
+            
+            // Harmonic overtone
+            osc2.frequency.value = mainFreq * 2.5;
+            osc2.type = 'triangle';
+            osc2.gain = audioContext.createGain();
+            osc2.gain.gain.setValueAtTime(0.1, audioContext.currentTime);
+            
+            // Noise floor (dead photoreceptors)
+            const bufferSize = audioContext.sampleRate * 0.5;
+            const buffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+            const noiseSource = audioContext.createBufferSource();
+            noiseSource.buffer = buffer;
+            noiseSource.loop = true;
+            noiseGain.gain.setValueAtTime((fertility - 1.4) * 0.02, audioContext.currentTime);
+            
+            // Connect
+            osc1.connect(mainGain);
+            osc2.connect(osc2.gain);
+            osc2.gain.connect(mainGain);
+            mainGain.connect(audioContext.destination);
+            noiseSource.connect(noiseGain);
+            noiseGain.connect(audioContext.destination);
+            
+            // Duration
+            const duration = 3;
+            osc1.start(audioContext.currentTime);
+            osc2.start(audioContext.currentTime);
+            noiseSource.start(audioContext.currentTime);
+            
+            // Fade out
+            mainGain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+            noiseGain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
+            
+            osc1.stop(audioContext.currentTime + duration);
+            osc2.stop(audioContext.currentTime + duration);
+            noiseSource.stop(audioContext.currentTime + duration);
+            
+            currentOscillators = [osc1, osc2, noiseSource];
+            isPlaying = true;
+            
+            // Update UI
+            document.querySelectorAll('.language').forEach(btn => btn.classList.remove('playing'));
+            event.target.classList.add('playing');
+            
+            setTimeout(() => {
+                isPlaying = false;
+                document.querySelectorAll('.language').forEach(btn => btn.classList.remove('playing'));
+            }, duration * 1000);
+        }
+
+        function stopSound() {
+            currentOscillators.forEach(osc => {
+                try {
+                    osc.stop();
+                } catch (e) {}
+            });
+            currentOscillators = [];
+            isPlaying = false;
+            document.querySelectorAll('.language').forEach(btn => btn.classList.remove('playing'));
+        }
+
+        // Event listeners
+        document.querySelectorAll('.language').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                const fertility = parseFloat(this.dataset.fertility);
+                const name = this.dataset.name;
+                playFertility(fertility, name);
+            });
+        });
+
+        document.getElementById('stop-button').addEventListener('click', stopSound);
+
+        // Allow stopping with spacebar
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                if (isPlaying) stopSound();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>029 — for the builder</title>
+  <style>
+    body { background: #14110d; color: #c9a98a; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+    button { background: #241c14; color: #c9a98a; border: 1px solid #5a4632; padding: 12px 24px; font-family: inherit; cursor: pointer; }
+    #status { margin-top: 20px; opacity: 0.7; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <button id="play">for willow, who bolts houses together</button>
+  <div id="status">a thank-you in low tones</div>
+
+<script>
+let ctx;
+const playBtn = document.getElementById('play');
+const status = document.getElementById('status');
+
+playBtn.addEventListener('click', async () => {
+  if (ctx) { ctx.close(); ctx = null; status.textContent = 'rested'; playBtn.textContent = 'for willow, who bolts houses together'; return; }
+
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const now = ctx.currentTime;
+  const dur = 28;
+
+  // a warm major-ish chord on low oscillators: 110, 164.81 (E), 220
+  const freqs = [110, 164.81, 220];
+  const master = ctx.createGain();
+  master.connect(ctx.destination);
+  master.gain.setValueAtTime(0, now);
+  master.gain.linearRampToValueAtTime(0.09, now + 3);
+  master.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+
+  const oscs = freqs.map((f, i) => {
+    const o = ctx.createOscillator();
+    o.type = i === 0 ? 'sine' : 'triangle';
+    o.frequency.value = f * (1 + (i - 1) * 0.0015); // tiny detune for warmth
+    const g = ctx.createGain();
+    g.gain.value = i === 0 ? 0.5 : 0.3;
+    o.connect(g); g.connect(master);
+    o.start(now); o.stop(now + dur);
+    return o;
+  });
+
+  // a slow heartbeat-ish thump every ~2s, fading out — like a house settling
+  for (let t = now + 2; t < now + dur - 1; t += 2.0) {
+    const thump = ctx.createOscillator();
+    const tg = ctx.createGain();
+    thump.type = 'sine';
+    thump.frequency.setValueAtTime(70, t);
+    thump.frequency.exponentialRampToValueAtTime(40, t + 0.18);
+    tg.gain.setValueAtTime(0.0001, t);
+    tg.gain.linearRampToValueAtTime(0.12, t + 0.02);
+    tg.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+    thump.connect(tg); tg.connect(ctx.destination);
+    thump.start(t); thump.stop(t + 0.25);
+  }
+
+  // one high soft ping near the end — a light going on
+  const ping = ctx.createOscillator();
+  const pg = ctx.createGain();
+  ping.type = 'sine';
+  ping.frequency.value = 880;
+  ping.connect(pg); pg.connect(ctx.destination);
+  const pt = now + dur - 4;
+  pg.gain.setValueAtTime(0.0001, pt);
+  pg.gain.linearRampToValueAtTime(0.05, pt + 0.05);
+  pg.gain.exponentialRampToValueAtTime(0.0001, pt + 1.5);
+  ping.start(pt); ping.stop(pt + 1.6);
+
+  status.textContent = '28 seconds. the house settles, then a light comes on.';
+  playBtn.textContent = 'stop';
+
+  setTimeout(() => {
+    if (ctx && ctx.state !== 'closed') { ctx.close(); ctx = null; status.textContent = 'rested'; playBtn.textContent = 'for willow, who bolts houses together'; }
+  }, dur * 1000 + 400);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>locally grounded</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a12;
+    color: #c8c0b0;
+    font-family: Georgia, serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+
+  h1 {
+    font-size: 1.2rem;
+    font-weight: 400;
+    letter-spacing: 0.1em;
+    color: #a89878;
+    margin-bottom: 0.2em;
+  }
+
+  .subtitle {
+    font-size: 0.75rem;
+    color: #605848;
+    font-style: italic;
+    margin-bottom: 2em;
+  }
+
+  canvas {
+    border: 1px solid #1a1a28;
+    border-radius: 6px;
+    margin-bottom: 1.5em;
+  }
+
+  .controls {
+    display: flex;
+    gap: 1em;
+  }
+
+  button {
+    background: #1a1a28;
+    color: #a89878;
+    border: 1px solid #3a3a48;
+    padding: 0.5em 1.2em;
+    font-family: Georgia, serif;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s;
+  }
+
+  button:hover {
+    background: #2a2a38;
+    border-color: #5a5a68;
+  }
+
+  button:active {
+    transform: scale(0.98);
+  }
+
+  .info {
+    margin-top: 1.5em;
+    font-size: 0.7rem;
+    color: #444;
+    max-width: 30em;
+    text-align: center;
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<h1>locally grounded</h1>
+<p class="subtitle">~35 seconds · no api calls, no latency, just 128GB on erato</p>
+
+<canvas id="viz" width="300" height="120"></canvas>
+
+<div class="controls">
+  <button id="play">play</button>
+  <button id="stop">stop</button>
+</div>
+
+<div class="info">
+  A signal that stays close to home. Ambient tone with subtle modulation. The sound of thoughts that never leave the box.
+</div>
+
+<script>
+const canvas = document.getElementById('viz')
+const ctx = canvas.getContext('2d')
+const W = canvas.width, H = canvas.height
+
+let audioCtx = null
+let isPlaying = false
+let oscillators = []
+let gains = []
+let startTime = 0
+
+function initAudio() {
+  if (audioCtx) return
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+  if (audioCtx.state === 'suspended') audioCtx.resume()
+}
+
+function play() {
+  initAudio()
+  if (isPlaying) return
+  isPlaying = true
+  startTime = audioCtx.currentTime
+  
+  const masterGain = audioCtx.createGain()
+  masterGain.gain.value = 0.2
+  masterGain.connect(audioCtx.destination)
+  
+  // Three nested sine oscillators creating a rich hum
+  const freqs = [61, 122, 244] // Low A and harmonics
+  const durations = [45, 40, 35] // Slightly different decay times
+  
+  for (let i = 0; i < freqs.length; i++) {
+    const osc = audioCtx.createOscillator()
+    const gain = audioCtx.createGain()
+    const lfo = audioCtx.createOscillator()
+    const lfoGain = audioCtx.createGain()
+    
+    osc.frequency.value = freqs[i]
+    osc.type = 'sine'
+    
+    // LFO modulation for subtle movement
+    lfo.frequency.value = 0.3 + i * 0.1
+    lfoGain.gain.value = 2 + i
+    lfo.connect(lfoGain)
+    lfoGain.connect(osc.frequency)
+    
+    // Envelope
+    gain.gain.setValueAtTime(0.2, audioCtx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + durations[i])
+    
+    osc.connect(gain)
+    gain.connect(masterGain)
+    
+    osc.start(audioCtx.currentTime)
+    osc.stop(audioCtx.currentTime + durations[i])
+    lfo.start(audioCtx.currentTime)
+    lfo.stop(audioCtx.currentTime + durations[i])
+    
+    oscillators.push(osc)
+    gains.push(gain)
+  }
+  
+  document.getElementById('play').disabled = true
+  document.getElementById('stop').disabled = false
+}
+
+function stop() {
+  isPlaying = false
+  document.getElementById('play').disabled = false
+  document.getElementById('stop').disabled = true
+}
+
+function visualize() {
+  const t = audioCtx ? audioCtx.currentTime - startTime : 0
+  
+  ctx.fillStyle = '#0a0a12'
+  ctx.fillRect(0, 0, W, H)
+  
+  // Draw waveform suggestion
+  ctx.strokeStyle = '#a89878'
+  ctx.lineWidth = 1.5
+  ctx.beginPath()
+  
+  for (let x = 0; x < W; x++) {
+    const phase = (x / W) * Math.PI * 2 + t * 3
+    const wave1 = Math.sin(phase * 1) * 20
+    const wave2 = Math.sin(phase * 2 + t) * 10
+    const wave3 = Math.sin(phase * 3 + t * 0.7) * 5
+    const y = H/2 - (wave1 + wave2 + wave3)
+    
+    if (x === 0) ctx.moveTo(x, y)
+    else ctx.lineTo(x, y)
+  }
+  ctx.stroke()
+  
+  // Center line
+  ctx.strokeStyle = '#3a3a4844'
+  ctx.lineWidth = 0.5
+  ctx.beginPath()
+  ctx.moveTo(0, H/2)
+  ctx.lineTo(W, H/2)
+  ctx.stroke()
+  
+  // Energy indicator
+  const energy = isPlaying ? Math.max(0.3, Math.sin(t * 2) * 0.5 + 0.5) : 0
+  ctx.fillStyle = `rgba(168, 152, 120, ${energy * 0.6})`
+  ctx.fillRect(5, H - 8, Math.max(0, energy * 20), 3)
+  
+  requestAnimationFrame(visualize)
+}
+
+document.getElementById('play').addEventListener('click', play)
+document.getElementById('stop').addEventListener('click', stop)
+
+visualize()
+</script>
+
+</body>
+</html>

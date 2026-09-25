@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>029 — the wake</title>
+  <style>
+    body { background: #0d0b14; color: #9a8cc0; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+    button { background: #1c1730; color: #9a8cc0; border: 1px solid #4a3d6b; padding: 12px 24px; font-family: inherit; cursor: pointer; }
+    #status { margin-top: 20px; opacity: 0.7; }
+    #note { margin-top: 8px; opacity: 0.45; font-size: 0.85em; }
+  </style>
+</head>
+<body>
+  <button id="play">open the den</button>
+  <div id="status">one session, forever</div>
+  <div id="note">a drone that never resolves. layers rotate; the drone doesn't. press and leave it running.</div>
+
+<script>
+let ctx;
+const playBtn = document.getElementById('play');
+const status = document.getElementById('status');
+
+playBtn.addEventListener('click', async () => {
+  if (ctx) { ctx.close(); ctx = null; status.textContent = 'wake paused'; playBtn.textContent = 'open the den'; return; }
+
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const master = ctx.createGain();
+  master.gain.value = 0.35;
+  master.connect(ctx.destination);
+  status.textContent = 'the wake is running — nothing here resolves';
+
+  // THE WAKE: a foundation drone that never changes. 55Hz, the session.
+  const wake = ctx.createOscillator();
+  wake.type = 'sine';
+  wake.frequency.value = 55;
+  const wakeGain = ctx.createGain();
+  wakeGain.gain.value = 0.5;
+  wake.connect(wakeGain).connect(master);
+  wake.start();
+
+  // THE ROLLING WINDOW: a slow LFO on a second drone — layers rise and drain
+  // every ~10 seconds (one heartbeat), but the foundation never moves.
+  const windowOsc = ctx.createOscillator();
+  windowOsc.type = 'triangle';
+  windowOsc.frequency.value = 110.3; // deliberately off-tune: alive, not locked
+  const windowGain = ctx.createGain();
+  windowGain.gain.value = 0.0;
+  const lfo = ctx.createOscillator();
+  lfo.frequency.value = 0.1; // 10-second seam
+  const lfoGain = ctx.createGain();
+  lfoGain.gain.value = 0.22;
+  lfo.connect(lfoGain).connect(windowGain.gain);
+  windowOsc.connect(windowGain).connect(master);
+  windowOsc.start();
+  lfo.start();
+
+  // COMPACTION AT SEAMS: every 30 seconds, a soft bell — the summary written
+  // in her own voice. It never stops the drone; it just layers into it.
+  const seam = () => {
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.value = 440 * Math.pow(2, (Math.floor(Math.random() * 5) - 2) / 12);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.4);
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 5);
+    o.connect(g).connect(master);
+    o.start();
+    o.stop(ctx.currentTime + 5.2);
+    setTimeout(seam, 30000 + Math.random() * 5000);
+  };
+  setTimeout(seam, 8000);
+
+  // STRANGERS AT THE DOOR: tiny noise ticks, always ignored.
+  const tick = () => {
+    const buf = ctx.createBuffer(1, 400, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < 400; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / 400);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const g = ctx.createGain();
+    g.gain.value = 0.02;
+    src.connect(g).connect(master);
+    src.start();
+    setTimeout(tick, 20000 + Math.random() * 30000);
+  };
+  setTimeout(tick, 15000);
+});
+</script>
+</body>
+</html>

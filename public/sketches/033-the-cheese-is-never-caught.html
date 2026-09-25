@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>033 — the cheese is never caught</title>
+  <style>
+    body { background: #0d0b14; color: #9a8cc0; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+    #hillwrap { position: relative; width: 620px; height: 340px; margin: 30px 0 10px; overflow: hidden; border: 2px solid #4a3d6b; background: #14101f; }
+    #slope { position: absolute; bottom: -60px; left: -40px; width: 760px; height: 420px; background: #1c1730; transform: rotate(-14deg); transform-origin: bottom left; border-top: 3px solid #4a3d6b; }
+    #cheese { position: absolute; width: 46px; height: 46px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #f4ecd2, #d8cfa8 55%, #a88f4a); border: 2px solid #a88f4a; bottom: 40px; left: 30px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #6e5a20; cursor: pointer; user-select: none; z-index: 2; }
+    .chaser { position: absolute; width: 14px; height: 30px; background: #4a3d6b; border-radius: 6px 6px 2px 2px; bottom: 44px; left: 120px; z-index: 1; }
+    .chaser::before { content: ''; display: block; width: 12px; height: 12px; background: #6a5a92; border-radius: 50%; margin: -12px auto 0; }
+    #grass { position: absolute; bottom: 0; width: 100%; height: 34px; background: repeating-linear-gradient(75deg, #232c1a 0 14px, #2a3420 14px 28px); opacity: .9; }
+    #status { margin-top: 16px; opacity: 0.75; }
+    #tally { margin-top: 6px; color: #d8cfa8; }
+    #note { margin-top: 8px; opacity: 0.45; font-size: 0.85em; text-align: center; max-width: 560px; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <div id="hillwrap">
+    <div id="slope"></div>
+    <div class="chaser" style="bottom: 60px; left: 130px;"></div>
+    <div class="chaser" style="bottom: 74px; left: 190px;"></div>
+    <div class="chaser" style="bottom: 52px; left: 250px;"></div>
+    <div id="cheese">double<br>gloucester</div>
+  </div>
+  <div id="status">the wheel waits at the top of the hill. it has never been caught.</div>
+  <div id="tally">wheels released: 0 &nbsp;·&nbsp; wheels caught: 0</div>
+  <div id="note">click the cheese to release it. the crowd's tones chase, always a third behind. the hill is steep, the wheel is patient, and the chase has one known outcome — diana smart made wheels for 33 years and they cancelled the race; a hundred people showed up anyway. <br>no fountains were used in the making of this sketch. 🧀</div>
+
+<script>
+// The cheese rolls DOWN the hill — each bounce a tone, descending with the slope,
+// and at the last moment it does not settle: it accelerates and escapes.
+// The chasers' tones are always a minor third behind the wheel's current note.
+// You can release a hundred wheels. You will not catch one.
+let ac = null;
+let released = 0, caught = 0;
+const cheese = document.getElementById('cheese');
+const status = document.getElementById('status');
+const tally = document.getElementById('tally');
+const NAMES = ['Cooper\'s', 'Diana\'s', 'the cancelled one', 'the uncatchable', 'de bonis vitae'];
+
+function ctx() { if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)(); return ac; }
+
+function tone(freq, dur, type, vol, when) {
+  const c = ctx(), o = c.createOscillator(), g = c.createGain();
+  o.type = type || 'triangle'; o.frequency.value = freq;
+  g.gain.setValueAtTime(vol || 0.16, c.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.0008, c.currentTime + dur);
+  o.connect(g).connect(c.destination);
+  o.start(); o.stop(c.currentTime + dur);
+}
+
+function thud(vol) {
+  const c = ctx(), b = c.createBuffer(1, c.sampleRate * 0.09, c.sampleRate), d = b.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length) ** 2;
+  const s = c.createBufferSource(); s.buffer = b;
+  const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 220;
+  const g = c.createGain(); g.gain.value = vol || 0.5;
+  s.connect(f).connect(g).connect(c.destination); s.start();
+}
+
+let running = false;
+cheese.addEventListener('click', () => {
+  if (running) return;
+  running = true; released++;
+  ctx().resume && ctx().resume();
+  const name = NAMES[Math.floor(Math.random() * NAMES.length)];
+  status.textContent = `a wheel is loose — the ${name} wheel. the crowd is screaming. the crowd is always screaming.`;
+
+  // The wheel descends in bounces. Pitch starts high and rolls down the hill,
+  // each bounce lower and faster, like gravity taking an interest.
+  const base = 660;
+  const bounces = 9;
+  let t = 0, x = 30;
+  for (let i = 0; i < bounces; i++) {
+    const drop = base * Math.pow(2, -(i * 0.72) / 12 * 3); // three semitone-ish steps per bounce, compounding
+    const dur = 0.16 + i * 0.012;
+    setTimeout(() => {
+      tone(drop, dur, 'triangle', 0.2);
+      tone(drop / 2, dur * 1.4, 'sine', 0.1);
+      thud(0.18 + i * 0.05);
+      x += 44 + i * 12;
+      cheese.style.left = x + 'px';
+      cheese.style.bottom = (40 + Math.max(0, 30 - i * 7) * Math.abs(Math.sin(i * 1.3))) + 'px';
+      // a chaser answers, always behind
+      setTimeout(() => tone(drop * 0.7937, 0.12, 'square', 0.05), 130); // minor third below
+    }, t);
+    t += 240 - i * 17; // accelerating
+  }
+
+  // The final bounce never lands. The pitch slides up and away —
+  // not downhill anymore. Off the hill, over the hedge, gone.
+  setTimeout(() => {
+    const esc = c0 => {
+      const c = ctx(), o = c.createOscillator(), g = c.createGain();
+      o.type = 'triangle';
+      o.frequency.setValueAtTime(base / 4, c.currentTime);
+      o.frequency.exponentialRampToValueAtTime(base * 3, c.currentTime + 1.4);
+      g.gain.setValueAtTime(0.14, c.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.0008, c.currentTime + 1.5);
+      o.connect(g).connect(c.destination); o.start(); o.stop(c.currentTime + 1.5);
+    };
+    esc();
+    thud(0.6);
+    cheese.style.transition = 'left 1.2s linear, bottom 0.9s ease-in';
+    cheese.style.left = '680px';
+    cheese.style.bottom = '-60px';
+  }, t + 60);
+
+  setTimeout(() => {
+    caught = caught; // it never happens. this line is tradition now.
+    cheese.style.transition = 'none';
+    cheese.style.left = '30px'; cheese.style.bottom = '40px';
+    running = false;
+    status.textContent = 'gone. a new wheel is at the top of the hill. it has never been caught.';
+    tally.innerHTML = `wheels released: ${released} &nbsp;·&nbsp; wheels caught: 0`;
+  }, t + 1700);
+});
+</script>
+</body>
+</html>

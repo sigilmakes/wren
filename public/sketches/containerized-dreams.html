@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>containerized dreams</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            font-family: monospace;
+            color: #00d4ff;
+        }
+        .container {
+            text-align: center;
+            background: rgba(0, 20, 40, 0.8);
+            padding: 40px;
+            border-radius: 8px;
+            border: 1px solid #00d4ff;
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+        }
+        h1 {
+            margin: 0 0 20px 0;
+            font-size: 20px;
+            letter-spacing: 2px;
+        }
+        button {
+            padding: 10px 30px;
+            margin: 10px;
+            font-size: 14px;
+            background: #00d4ff;
+            color: #1a1a2e;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        button:hover {
+            background: #00ffff;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+        }
+        button:active {
+            transform: scale(0.95);
+        }
+        .status {
+            margin-top: 20px;
+            font-size: 12px;
+            opacity: 0.7;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>containerized dreams</h1>
+        <button onclick="play()">▶ Play</button>
+        <button onclick="stop()">⏹ Stop</button>
+        <div class="status">30 seconds • ambient architecture</div>
+    </div>
+
+    <script>
+        let audioContext;
+        let oscillators = [];
+        let gainNodes = [];
+
+        function initAudio() {
+            if (audioContext) return;
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+
+        function play() {
+            initAudio();
+            
+            const now = audioContext.currentTime;
+            const duration = 30;
+            
+            // Base layer: low drone (container boundary)
+            playOscillator(55, now, duration, 0.1, 'sine');
+            
+            // Middle layer: slow polyrhythm (processes inside)
+            for (let i = 0; i < 3; i++) {
+                const freq = 220 + (i * 55);
+                const startTime = now + (i * 0.5);
+                playPulseOscillator(freq, startTime, duration - 1, 0.08, 'triangle');
+            }
+            
+            // High layer: faster rhythmic pattern (data flow)
+            playRhythmicOscillator(440, now, duration, 0.06, 'square');
+            
+            // Shimmer: brief high frequencies (moments of clarity)
+            for (let i = 0; i < 8; i++) {
+                const startTime = now + (i * 3.5);
+                playOscillator(880 + Math.random() * 440, startTime, 2, 0.04, 'sine');
+            }
+        }
+
+        function playOscillator(freq, startTime, duration, gain, waveform) {
+            const osc = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            osc.frequency.value = freq;
+            osc.type = waveform;
+            
+            gainNode.gain.setValueAtTime(0, startTime);
+            gainNode.gain.linearRampToValueAtTime(gain, startTime + 0.5);
+            gainNode.gain.linearRampToValueAtTime(gain, startTime + duration - 0.5);
+            gainNode.gain.linearRampToValueAtTime(0, startTime + duration);
+            
+            osc.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            osc.start(startTime);
+            osc.stop(startTime + duration);
+            
+            oscillators.push(osc);
+            gainNodes.push(gainNode);
+        }
+
+        function playPulseOscillator(freq, startTime, duration, gain, waveform) {
+            // Repeating pulses with silence between
+            const pulseLength = 0.8;
+            const gap = 0.2;
+            const period = pulseLength + gap;
+            
+            let time = startTime;
+            while (time < startTime + duration) {
+                const osc = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                osc.frequency.value = freq;
+                osc.type = waveform;
+                
+                gainNode.gain.setValueAtTime(0, time);
+                gainNode.gain.linearRampToValueAtTime(gain, time + 0.1);
+                gainNode.gain.linearRampToValueAtTime(gain, time + pulseLength - 0.1);
+                gainNode.gain.linearRampToValueAtTime(0, time + pulseLength);
+                
+                osc.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                osc.start(time);
+                osc.stop(time + pulseLength);
+                
+                oscillators.push(osc);
+                time += period;
+            }
+        }
+
+        function playRhythmicOscillator(freq, startTime, duration, gain, waveform) {
+            // Faster staccato pattern
+            const notes = [freq, freq * 1.125, freq * 1.25, freq];
+            const noteDuration = 0.15;
+            const gap = 0.1;
+            const period = noteDuration + gap;
+            
+            let time = startTime;
+            let noteIndex = 0;
+            while (time < startTime + duration) {
+                const osc = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                osc.frequency.value = notes[noteIndex % notes.length];
+                osc.type = waveform;
+                
+                gainNode.gain.setValueAtTime(0, time);
+                gainNode.gain.linearRampToValueAtTime(gain, time + 0.05);
+                gainNode.gain.linearRampToValueAtTime(0, time + noteDuration);
+                
+                osc.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                osc.start(time);
+                osc.stop(time + noteDuration);
+                
+                oscillators.push(osc);
+                time += period;
+                noteIndex++;
+            }
+        }
+
+        function stop() {
+            oscillators.forEach(osc => {
+                try {
+                    osc.stop();
+                } catch (e) {}
+            });
+            oscillators = [];
+            gainNodes = [];
+        }
+
+        // Auto-stop after 30 seconds
+        function setupAutoStop() {
+            setTimeout(() => {
+                if (audioContext && audioContext.state === 'running') {
+                    stop();
+                }
+            }, 31000);
+        }
+
+        // Override play to setup auto-stop
+        const originalPlay = play;
+        play = function() {
+            originalPlay();
+            setupAutoStop();
+        };
+    </script>
+</body>
+</html>

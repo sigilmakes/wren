@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>013 — the cup</title>
+<style>
+  body {
+    margin: 0;
+    background: #0a0a0f;
+    color: #667;
+    font-family: Georgia, serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    overflow: hidden;
+    cursor: pointer;
+  }
+  #title {
+    font-size: 14px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    margin-bottom: 40px;
+    opacity: 0.4;
+  }
+  #cup {
+    width: 200px;
+    height: 200px;
+    position: relative;
+  }
+  canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+  }
+  #status {
+    margin-top: 40px;
+    font-size: 12px;
+    opacity: 0.3;
+    font-style: italic;
+  }
+  #phase {
+    margin-top: 12px;
+    font-size: 11px;
+    opacity: 0.2;
+    letter-spacing: 2px;
+  }
+</style>
+</head>
+<body>
+<div id="title">013 — the cup</div>
+<div id="cup">
+  <canvas id="viz" width="200" height="200"></canvas>
+</div>
+<div id="status">click to fill</div>
+<div id="phase"></div>
+
+<script>
+// Sound sketch 013: the cup
+// A resonant vessel that fills, holds, and empties.
+// Five phases: empty → filling → full → spilling → empty again.
+// The cup shape as sound: a bandpass filter (the resonance of a cavity),
+// drips falling in, the hum of held liquid, overflow.
+
+let ctx, started = false;
+let phase = 'empty'; // empty, filling, full, spilling
+let fillLevel = 0; // 0 to 1
+let phaseTime = 0;
+let canvas, cctx;
+
+const FILL_DURATION = 12;   // seconds to fill
+const HOLD_DURATION = 6;    // seconds held full
+const SPILL_DURATION = 8;   // seconds to empty
+
+document.body.addEventListener('click', async () => {
+  if (started) return;
+  started = true;
+  document.getElementById('status').textContent = 'listening...';
+
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  canvas = document.getElementById('viz');
+  cctx = canvas.getContext('2d');
+
+  // === THE VESSEL: a resonant bandpass filter ===
+  // The cup has a resonant frequency. Empty cup resonates high.
+  // As it fills, the resonance drops (more mass, longer column).
+  const vessel = ctx.createBiquadFilter();
+  vessel.type = 'bandpass';
+  vessel.frequency.value = 800;
+  vessel.Q.value = 8;
+
+  // Second resonance (overtone of the cup shape)
+  const vessel2 = ctx.createBiquadFilter();
+  vessel2.type = 'bandpass';
+  vessel2.frequency.value = 1600;
+  vessel2.Q.value = 4;
+
+  // === THE BREATH: low drone, the air inside ===
+  const breathOsc = ctx.createOscillator();
+  breathOsc.type = 'sine';
+  breathOsc.frequency.value = 55; // low A
+  const breathGain = ctx.createGain();
+  breathGain.gain.value = 0;
+  breathOsc.connect(breathGain);
+  breathGain.connect(vessel);
+  breathOsc.start();
+
+  // === THE DRIP SOURCE: noise bursts filtered to sound like drops ===
+  const noiseBuffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+  const noiseData = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < noiseData.length; i++) {
+    noiseData[i] = Math.random() * 2 - 1;
+  }
+
+  // Drip envelope — controlled by scheduling
+  const dripGain = ctx.createGain();
+  dripGain.gain.value = 0;
+
+  // Drip filter — high resonance, like water hitting water
+  const dripFilter = ctx.createBiquadFilter();
+  dripFilter.type = 'bandpass';
+  dripFilter.frequency.value = 2000;
+  dripFilter.Q.value = 15;
+
+  // === THE HUM: when the cup is full, it sings ===
+  const humOsc = ctx.createOscillator();
+  humOsc.type = 'sine';
+  humOsc.frequency.value = 220;
+  const humGain = ctx.createGain();
+  humGain.gain.value = 0;
+  const humVibrato = ctx.createOscillator();
+  humVibrato.frequency.value = 4.5;
+  const humVibratoGain = ctx.createGain();
+  humVibratoGain.gain.value = 3;
+  humVibrato.connect(humVibratoGain);
+  humVibratoGain.connect(humOsc.frequency);
+  humOsc.connect(humGain);
+  humVibrato.start();
+  humOsc.start();
+
+  // === THE OVERFLOW: when it spills, white noise filtered low ===
+  const spillGain = ctx.createGain();
+  spillGain.gain.value = 0;
+  const spillFilter = ctx.createBiquadFilter();
+  spillFilter.type = 'lowpass';
+  spillFilter.frequency.value = 400;
+  spillFilter.Q.value = 1;
+
+  // === MASTER ===
+  const master = ctx.createGain();
+  master.gain.value = 0.35;
+  const compressor = ctx.createDynamicsCompressor();
+  compressor.threshold.value = -20;
+
+  // Reverb (convolution) — the cup is a resonant space
+  const reverbLen = 2;
+  const reverbBuffer = ctx.createBuffer(2, ctx.sampleRate * reverbLen, ctx.sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = reverbBuffer.getChannelData(ch);
+    for (let i = 0; i < d.length; i++) {
+      d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.8));
+    }
+  }
+  const reverb = ctx.createConvolver();
+  reverb.buffer = reverbBuffer;
+  const reverbGain = ctx.createGain();
+  reverbGain.gain.value = 0.3;
+  const dryGain = ctx.createGain();
+  dryGain.gain.value = 0.7;
+
+  // Connect: vessel → reverb + dry → compressor → master → out
+  vessel.connect(reverb);
+  vessel.connect(dryGain);
+  vessel2.connect(reverb);
+  vessel2.connect(dryGain);
+  humGain.connect(reverb);
+  humGain.connect(dryGain);
+  spillGain.connect(spillFilter);
+  spillFilter.connect(reverb);
+  spillFilter.connect(dryGain);
+  reverb.connect(reverbGain);
+  reverbGain.connect(compressor);
+  dryGain.connect(compressor);
+  compressor.connect(master);
+  master.connect(ctx.destination);
+
+  // === DRIP SCHEDULING ===
+  let dripInterval = null;
+  let nextDrip = 0;
+
+  function scheduleDrip(time) {
+    const noise = ctx.createBufferSource();
+    noise.buffer = noiseBuffer;
+    noise.connect(dripFilter);
+    dripFilter.connect(dripGain);
+    dripGain.connect(vessel);
+    dripGain.connect(vessel2);
+
+    // Each drip: sharp attack, quick decay
+    const t = time || ctx.currentTime;
+    dripGain.gain.setValueAtTime(0, t);
+    dripGain.gain.linearRampToValueAtTime(0.4 + Math.random() * 0.3, t + 0.003);
+    dripGain.gain.exponentialRampToValueAtTime(0.001, t + 0.08 + Math.random() * 0.12);
+
+    // Pitch varies — higher drips into emptier cup, lower into fuller
+    const basePitch = 1200 + (1 - fillLevel) * 2000 + Math.random() * 500;
+    dripFilter.frequency.setValueAtTime(basePitch, t);
+    dripFilter.frequency.exponentialRampToValueAtTime(basePitch * 0.4, t + 0.15);
+
+    noise.start(t);
+    noise.stop(t + 0.2);
+  }
+
+  // === PHASE MACHINE ===
+  const startTime = ctx.currentTime;
+  let lastDripTime = 0;
+
+  function update() {
+    const now = ctx.currentTime;
+    const elapsed = now - startTime;
+    phaseTime += 1/60;
+
+    // Phase transitions
+    if (phase === 'empty' && elapsed > 1) {
+      phase = 'filling';
+      phaseTime = 0;
+      document.getElementById('phase').textContent = 'filling';
+    } else if (phase === 'filling' && fillLevel >= 1) {
+      phase = 'full';
+      phaseTime = 0;
+      document.getElementById('phase').textContent = 'holding';
+    } else if (phase === 'full' && phaseTime > HOLD_DURATION) {
+      phase = 'spilling';
+      phaseTime = 0;
+      document.getElementById('phase').textContent = 'spilling';
+    } else if (phase === 'spilling' && fillLevel <= 0) {
+      phase = 'done';
+      phaseTime = 0;
+      document.getElementById('phase').textContent = '';
+      document.getElementById('status').textContent = 'the cup is the cup is the cup';
+    }
+
+    // Phase behaviors
+    if (phase === 'filling') {
+      fillLevel = Math.min(1, phaseTime / FILL_DURATION);
+
+      // Drips: start slow, get faster as cup fills
+      const dripRate = 0.3 + fillLevel * 2.5; // drips per second
+      const dripSpacing = 1 / dripRate;
+      if (now - lastDripTime > dripSpacing + Math.random() * 0.1) {
+        scheduleDrip();
+        lastDripTime = now;
+      }
+
+      // Breath grows with fill level
+      breathGain.gain.linearRampToValueAtTime(fillLevel * 0.08, now + 0.05);
+      breathOsc.frequency.linearRampToValueAtTime(55 + fillLevel * 30, now + 0.05);
+
+      // Vessel resonance drops as it fills
+      vessel.frequency.linearRampToValueAtTime(800 - fillLevel * 400, now + 0.05);
+      vessel2.frequency.linearRampToValueAtTime(1600 - fillLevel * 600, now + 0.05);
+
+    } else if (phase === 'full') {
+      // The cup hums when full
+      const humAmount = Math.min(1, phaseTime / 2);
+      humGain.gain.linearRampToValueAtTime(humAmount * 0.06, now + 0.05);
+
+      // Occasional surface drip (condensation)
+      if (Math.random() < 0.008) {
+        scheduleDrip();
+      }
+
+      // Breath steady
+      breathGain.gain.linearRampToValueAtTime(0.08, now + 0.05);
+
+    } else if (phase === 'spilling') {
+      fillLevel = Math.max(0, 1 - phaseTime / SPILL_DURATION);
+
+      // Spill noise
+      const spillAmount = (1 - fillLevel);
+      if (spillAmount > 0 && !spillGain._noiseStarted) {
+        const spillNoise = ctx.createBufferSource();
+        spillNoise.buffer = noiseBuffer;
+        spillNoise.loop = true;
+        spillNoise.connect(spillGain);
+        spillNoise.start();
+        spillGain._noiseStarted = true;
+      }
+      spillGain.gain.linearRampToValueAtTime(
+        Math.sin(spillAmount * Math.PI) * 0.15, now + 0.05
+      );
+      spillFilter.frequency.linearRampToValueAtTime(
+        200 + fillLevel * 400, now + 0.05
+      );
+
+      // Hum fades
+      humGain.gain.linearRampToValueAtTime(fillLevel * 0.06, now + 0.05);
+
+      // Breath fades
+      breathGain.gain.linearRampToValueAtTime(fillLevel * 0.08, now + 0.05);
+
+      // Vessel resonance rises back
+      vessel.frequency.linearRampToValueAtTime(400 + (1-fillLevel) * 400, now + 0.05);
+
+      // Occasional drip (last drops)
+      if (fillLevel < 0.3 && Math.random() < 0.02) {
+        scheduleDrip();
+      }
+
+    } else if (phase === 'done') {
+      // Fade everything
+      master.gain.linearRampToValueAtTime(0, now + 3);
+      spillGain.gain.linearRampToValueAtTime(0, now + 1);
+      setTimeout(() => {
+        breathOsc.stop();
+        humOsc.stop();
+        humVibrato.stop();
+      }, 4000);
+      drawCup();
+      return;
+    }
+
+    drawCup();
+    requestAnimationFrame(update);
+  }
+
+  function drawCup() {
+    cctx.clearRect(0, 0, 200, 200);
+
+    // Draw cup outline — a simple curved vessel
+    cctx.strokeStyle = 'rgba(100, 120, 140, 0.3)';
+    cctx.lineWidth = 1.5;
+    cctx.beginPath();
+    // Left wall
+    cctx.moveTo(50, 40);
+    cctx.quadraticCurveTo(35, 120, 55, 170);
+    // Bottom
+    cctx.quadraticCurveTo(100, 185, 145, 170);
+    // Right wall
+    cctx.quadraticCurveTo(165, 120, 150, 40);
+    cctx.stroke();
+
+    // Draw liquid
+    if (fillLevel > 0) {
+      const liquidTop = 170 - fillLevel * 125;
+      const liquidAlpha = 0.15 + fillLevel * 0.2;
+
+      // Gradient for liquid
+      const grad = cctx.createLinearGradient(0, liquidTop, 0, 175);
+      grad.addColorStop(0, `rgba(80, 140, 200, ${liquidAlpha})`);
+      grad.addColorStop(1, `rgba(40, 80, 140, ${liquidAlpha + 0.1})`);
+
+      cctx.fillStyle = grad;
+      cctx.beginPath();
+
+      // Surface ripple
+      const ripple = phase === 'filling' ? Math.sin(Date.now() / 200) * 2 : 0;
+
+      // Compute wall positions at liquid level
+      const t = 1 - (liquidTop - 40) / 130; // 0 at top, 1 at bottom
+      const leftX = 50 - 15 * t + 20 * t;   // approximate the curve
+      const rightX = 150 + 15 * t - 20 * t;
+      const leftXBot = 55;
+      const rightXBot = 145;
+
+      cctx.moveTo(leftX + 3, liquidTop + ripple);
+
+      // Surface wave
+      for (let x = leftX + 3; x <= rightX - 3; x += 2) {
+        const wave = Math.sin((x + Date.now() / 300) * 0.08) * (phase === 'filling' ? 2 : 0.5);
+        cctx.lineTo(x, liquidTop + wave + ripple);
+      }
+
+      // Right wall down
+      cctx.quadraticCurveTo(165 - (165-rightXBot) * (1-t*0.3), 120 + t * 30, rightXBot, 170);
+      // Bottom
+      cctx.quadraticCurveTo(100, 185, leftXBot, 170);
+      // Left wall up
+      cctx.quadraticCurveTo(35 + (leftXBot-35) * (1-t*0.3), 120 + t * 30, leftX + 3, liquidTop + ripple);
+
+      cctx.fill();
+
+      // Spill effect
+      if (phase === 'spilling' && fillLevel < 0.7) {
+        cctx.fillStyle = `rgba(60, 120, 180, ${(1-fillLevel) * 0.1})`;
+        cctx.beginPath();
+        cctx.ellipse(100, 185, 30 + (1-fillLevel) * 40, 5 + (1-fillLevel) * 8, 0, 0, Math.PI * 2);
+        cctx.fill();
+      }
+    }
+
+    // Drip particles during filling
+    if (phase === 'filling' && Math.random() < 0.15) {
+      const dx = 70 + Math.random() * 60;
+      const dy = 30 + Math.random() * 10;
+      cctx.fillStyle = 'rgba(100, 160, 220, 0.6)';
+      cctx.beginPath();
+      cctx.arc(dx, dy, 1.5, 0, Math.PI * 2);
+      cctx.fill();
+    }
+  }
+
+  update();
+});
+</script>
+</body>
+</html>

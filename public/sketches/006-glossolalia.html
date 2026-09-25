@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>006 — glossolalia</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #08060b;
+    color: #c8b8d8;
+    font-family: 'Courier New', monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    overflow: hidden;
+    cursor: pointer;
+    user-select: none;
+  }
+  #utterance {
+    font-size: 2.5rem;
+    letter-spacing: 0.15em;
+    text-align: center;
+    max-width: 80vw;
+    line-height: 1.6;
+    min-height: 4em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.3s;
+  }
+  #history {
+    position: fixed;
+    bottom: 1rem;
+    left: 1rem;
+    right: 1rem;
+    text-align: center;
+    font-size: 0.7rem;
+    color: #3a2a4a;
+    line-height: 1.8;
+    max-height: 30vh;
+    overflow: hidden;
+  }
+  .syllable {
+    display: inline-block;
+    opacity: 0;
+    animation: appear 0.15s ease forwards;
+  }
+  @keyframes appear {
+    to { opacity: 1; }
+  }
+  .fade { opacity: 0.3; }
+  #hint {
+    position: fixed;
+    top: 1rem;
+    font-size: 0.65rem;
+    color: #2a1a3a;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+  }
+  #ipa {
+    font-size: 0.9rem;
+    color: #5a4a6a;
+    margin-top: 0.5rem;
+    letter-spacing: 0.2em;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<div id="hint">click to speak</div>
+<div id="utterance"></div>
+<div id="ipa"></div>
+<div id="history"></div>
+
+<script>
+// ─── Phoneme inventory ──────────────────────────────────────
+// A constructed phonology. Not any real language.
+// Weighted toward liquid/nasal consonants and open vowels.
+
+const C = {
+  // onset consonants: [grapheme, IPA, formant-hint]
+  stops:    ['t','k','p','d','g','b'],
+  fric:     ['s','sh','f','v','z','th','h'],
+  nasals:   ['m','n','ng'],
+  liquids:  ['l','r','w','y'],
+  affric:   ['ts','dz','ch'],
+};
+
+const V = {
+  // vowels: [grapheme, IPA]
+  open:     ['a','ah','o'],
+  mid:      ['e','eh','uh'],
+  close:    ['i','u','ee'],
+  diph:     ['ai','ou','ei','ao'],
+};
+
+const CODAS = ['n','m','l','r','s','sh','k','th','ng',''];
+
+// ─── Phonotactic rules ──────────────────────────────────────
+// syllable = (C)(C)V(C)
+// clusters: stop+liquid, fric+liquid, nasal+stop (rare)
+// no gemination across syllable boundary
+// stress falls on penultimate syllable
+// words are 1-5 syllables, following a distribution
+
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function wpick(arr, weights) {
+  const total = weights.reduce((a,b) => a+b, 0);
+  let r = Math.random() * total;
+  for (let i = 0; i < arr.length; i++) {
+    r -= weights[i];
+    if (r <= 0) return arr[i];
+  }
+  return arr[arr.length - 1];
+}
+
+function onset() {
+  const type = wpick(
+    ['none','simple','cluster'],
+    [0.2, 0.6, 0.2]
+  );
+  if (type === 'none') return '';
+  if (type === 'simple') {
+    const cat = wpick(
+      [C.stops, C.fric, C.nasals, C.liquids, C.affric],
+      [3, 2, 3, 4, 1]
+    );
+    return pick(cat);
+  }
+  // cluster: stop/fric + liquid
+  const first = pick([...C.stops, ...C.fric]);
+  const second = pick(C.liquids);
+  // avoid awkward clusters
+  if (first === second) return first;
+  if (first === 'h' && second === 'w') return 'wh';
+  return first + second;
+}
+
+function nucleus() {
+  const cat = wpick(
+    [V.open, V.mid, V.close, V.diph],
+    [4, 3, 2, 1]
+  );
+  return pick(cat);
+}
+
+function coda() {
+  return wpick(
+    CODAS,
+    [3, 3, 3, 2, 2, 1, 1, 1, 1, 8] // empty coda most common
+  );
+}
+
+function syllable() {
+  return onset() + nucleus() + coda();
+}
+
+function word() {
+  const len = wpick([1,2,3,4,5], [1, 4, 4, 2, 1]);
+  const syllables = [];
+  let prev = '';
+  for (let i = 0; i < len; i++) {
+    let s;
+    let attempts = 0;
+    do {
+      s = syllable();
+      attempts++;
+    } while (s.startsWith(prev.slice(-1)) && attempts < 10);
+    syllables.push(s);
+    prev = s;
+  }
+  return syllables.join('');
+}
+
+function utterance() {
+  const len = wpick([1,2,3,4,5,6,7], [1, 2, 4, 4, 3, 2, 1]);
+  const words = [];
+  for (let i = 0; i < len; i++) {
+    words.push(word());
+  }
+  return words;
+}
+
+// ─── Speech synthesis ───────────────────────────────────────
+// Use the Web Speech API to actually speak the words
+// with a low, breathy voice
+
+let synth = window.speechSynthesis;
+let speaking = false;
+
+function speak(text) {
+  if (!synth) return;
+  synth.cancel();
+  const utt = new SpeechSynthesisUtterance(text);
+  // Find a voice — prefer something unusual
+  const voices = synth.getVoices();
+  // try to find a non-English voice for extra alienness
+  const exotic = voices.filter(v =>
+    !v.lang.startsWith('en') && (v.lang.startsWith('fi') || v.lang.startsWith('ja') || v.lang.startsWith('ko') || v.lang.startsWith('tr') || v.lang.startsWith('id'))
+  );
+  if (exotic.length) {
+    utt.voice = pick(exotic);
+  } else if (voices.length) {
+    utt.voice = pick(voices);
+  }
+  utt.rate = wpick([0.5, 0.6, 0.7, 0.8, 0.9], [2, 3, 3, 2, 1]);
+  utt.pitch = wpick([0.3, 0.5, 0.7, 0.9, 1.1], [1, 3, 3, 2, 1]);
+  utt.volume = 0.7;
+  speaking = true;
+  utt.onend = () => { speaking = false; };
+  synth.speak(utt);
+}
+
+// ─── Audio layer ────────────────────────────────────────────
+// Subtle drone underneath. Not music. Presence.
+
+let audioCtx;
+let droneGain;
+let droneActive = false;
+
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+  // Two detuned oscillators for a beating drone
+  droneGain = audioCtx.createGain();
+  droneGain.gain.value = 0;
+  droneGain.connect(audioCtx.destination);
+
+  const baseFreq = wpick([55, 65.41, 73.42, 82.41], [3,2,2,1]);
+
+  for (let i = 0; i < 3; i++) {
+    const osc = audioCtx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = baseFreq * (1 + (i - 1) * 0.003);
+    const g = audioCtx.createGain();
+    g.gain.value = 0.15;
+    osc.connect(g);
+    g.connect(droneGain);
+    osc.start();
+  }
+
+  // Very slow filter sweep
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 200;
+  filter.Q.value = 2;
+
+  // Reconnect through filter
+  droneGain.disconnect();
+  droneGain.connect(filter);
+  filter.connect(audioCtx.destination);
+
+  // Sweep the filter
+  function sweep() {
+    const now = audioCtx.currentTime;
+    filter.frequency.setValueAtTime(filter.frequency.value, now);
+    filter.frequency.linearRampToValueAtTime(
+      100 + Math.random() * 300,
+      now + 8 + Math.random() * 12
+    );
+    setTimeout(sweep, 10000 + Math.random() * 15000);
+  }
+  sweep();
+}
+
+function pulseDrone() {
+  if (!droneGain) return;
+  const now = audioCtx.currentTime;
+  droneGain.gain.cancelScheduledValues(now);
+  droneGain.gain.setValueAtTime(droneGain.gain.value, now);
+  droneGain.gain.linearRampToValueAtTime(0.12, now + 0.5);
+  droneGain.gain.linearRampToValueAtTime(0.03, now + 4);
+}
+
+// Consonant-like noise burst
+function clickSound() {
+  if (!audioCtx) return;
+  const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.03, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < data.length; i++) {
+    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (data.length * 0.3));
+  }
+  const src = audioCtx.createBufferSource();
+  src.buffer = buf;
+  const g = audioCtx.createGain();
+  g.gain.value = 0.08;
+  src.connect(g);
+  g.connect(audioCtx.destination);
+  src.start();
+}
+
+// ─── Display ────────────────────────────────────────────────
+
+const el = document.getElementById('utterance');
+const historyEl = document.getElementById('history');
+const ipaEl = document.getElementById('ipa');
+const hintEl = document.getElementById('hint');
+let allUtterances = [];
+
+function display(words) {
+  el.innerHTML = '';
+  const text = words.join(' ');
+
+  words.forEach((w, wi) => {
+    if (wi > 0) {
+      const space = document.createElement('span');
+      space.textContent = ' ';
+      el.appendChild(space);
+    }
+    for (let ci = 0; ci < w.length; ci++) {
+      const span = document.createElement('span');
+      span.className = 'syllable';
+      span.textContent = w[ci];
+      span.style.animationDelay = `${(wi * 4 + ci) * 0.03}s`;
+      el.appendChild(span);
+    }
+  });
+
+  // Add to history
+  allUtterances.push(text);
+  if (allUtterances.length > 12) allUtterances.shift();
+  historyEl.innerHTML = allUtterances.slice(0, -1)
+    .map((u, i) => {
+      const opacity = 0.15 + (i / allUtterances.length) * 0.3;
+      return `<span style="opacity:${opacity}">${u}</span>`;
+    })
+    .join('<br>');
+}
+
+function generate() {
+  initAudio();
+  hintEl.style.opacity = '0';
+
+  const words = utterance();
+  display(words);
+  pulseDrone();
+  clickSound();
+
+  // Speak it
+  const text = words.join(' ');
+  setTimeout(() => speak(text), 200);
+}
+
+// Click to generate
+document.body.addEventListener('click', () => {
+  if (speaking) {
+    synth.cancel();
+    speaking = false;
+  }
+  generate();
+});
+
+// Spacebar too
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') {
+    e.preventDefault();
+    generate();
+  }
+});
+
+// Auto-generate slowly if idle
+let autoTimer;
+function resetAuto() {
+  clearInterval(autoTimer);
+  autoTimer = setInterval(() => {
+    generate();
+  }, 6000 + Math.random() * 4000);
+}
+
+document.body.addEventListener('click', resetAuto);
+document.addEventListener('keydown', resetAuto);
+
+// Load voices (Chrome needs this)
+if (synth) {
+  synth.getVoices();
+  speechSynthesis.onvoiceschanged = () => synth.getVoices();
+}
+</script>
+</body>
+</html>

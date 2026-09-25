@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="1200" height="800">
+  <defs>
+    <!-- Sky gradient: nearly black, darker than the sea -->
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#050508"/>
+      <stop offset="70%" stop-color="#080a10"/>
+      <stop offset="100%" stop-color="#0c1018"/>
+    </linearGradient>
+
+    <!-- Sea gradient: the glow, brighter than the sky -->
+    <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3a4a5c"/>
+      <stop offset="15%" stop-color="#4a5d72"/>
+      <stop offset="40%" stop-color="#5a7088"/>
+      <stop offset="70%" stop-color="#4d6478"/>
+      <stop offset="100%" stop-color="#384858"/>
+    </linearGradient>
+
+    <!-- Glow overlay for the sea surface -->
+    <radialGradient id="seaglow" cx="0.5" cy="0.2" r="0.8">
+      <stop offset="0%" stop-color="#8aa4bc" stop-opacity="0.3"/>
+      <stop offset="40%" stop-color="#6a8aaa" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#3a5a7a" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Horizon haze -->
+    <linearGradient id="horizonhaze" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2a3a4e" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#2a3a4e" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Ship silhouette filter -->
+    <filter id="shipblur">
+      <feGaussianBlur stdDeviation="0.5"/>
+    </filter>
+
+    <!-- Star glow -->
+    <filter id="starglow">
+      <feGaussianBlur stdDeviation="1.2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Sea shimmer texture -->
+    <filter id="shimmer">
+      <feTurbulence type="fractalNoise" baseFrequency="0.008 0.04" numOctaves="4" seed="42"/>
+      <feColorMatrix type="saturate" values="0"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.12" intercept="0"/>
+      </feComponentTransfer>
+      <feBlend in="SourceGraphic" mode="screen"/>
+    </filter>
+
+    <!-- Wake darkness -->
+    <linearGradient id="wake" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0a1018" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#0a1018" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- SKY: nearly black, the inversion -->
+  <rect x="0" y="0" width="1200" height="380" fill="url(#sky)"/>
+
+  <!-- Stars: dim, dimmer than the sea. That's the point. -->
+  <!-- Scattered, few, faint -->
+  <g opacity="0.25" filter="url(#starglow)">
+    <circle cx="120" cy="45" r="1" fill="#889aaa"/>
+    <circle cx="340" cy="80" r="0.8" fill="#7788a0"/>
+    <circle cx="520" cy="30" r="1.2" fill="#8090a8"/>
+    <circle cx="680" cy="110" r="0.7" fill="#7080a0"/>
+    <circle cx="780" cy="55" r="1" fill="#8898a8"/>
+    <circle cx="920" cy="90" r="0.9" fill="#7888a0"/>
+    <circle cx="1050" cy="40" r="1.1" fill="#8090a8"/>
+    <circle cx="200" cy="150" r="0.6" fill="#7080a0"/>
+    <circle cx="450" cy="180" r="0.8" fill="#7888a0"/>
+    <circle cx="750" cy="200" r="0.7" fill="#7080a0"/>
+    <circle cx="1000" cy="160" r="0.9" fill="#8090a8"/>
+    <circle cx="100" cy="250" r="0.5" fill="#6878a0"/>
+    <circle cx="600" cy="270" r="0.6" fill="#6878a0"/>
+    <circle cx="880" cy="240" r="0.7" fill="#7080a0"/>
+    <circle cx="300" cy="300" r="0.4" fill="#5868a0"/>
+    <circle cx="1100" cy="280" r="0.5" fill="#6070a0"/>
+  </g>
+
+  <!-- Horizon haze: where sea-glow leaks into sky -->
+  <rect x="0" y="330" width="1200" height="50" fill="url(#horizonhaze)"/>
+
+  <!-- SEA: luminous, glowing, brighter than the sky above -->
+  <rect x="0" y="380" width="1200" height="420" fill="url(#sea)"/>
+
+  <!-- Sea glow overlay: the milky luminescence -->
+  <rect x="0" y="380" width="1200" height="420" fill="url(#seaglow)"/>
+
+  <!-- Shimmer texture on sea surface -->
+  <rect x="0" y="380" width="1200" height="420" filter="url(#shimmer)" opacity="0.8"/>
+
+  <!-- Gentle wave patterns: subtle horizontal lines of lighter glow -->
+  <g opacity="0.08">
+    <ellipse cx="600" cy="420" rx="600" ry="3" fill="#aabbcc"/>
+    <ellipse cx="500" cy="460" rx="550" ry="2.5" fill="#99aabc"/>
+    <ellipse cx="650" cy="500" rx="580" ry="2" fill="#8899aa"/>
+    <ellipse cx="550" cy="545" rx="560" ry="2.5" fill="#99aabc"/>
+    <ellipse cx="620" cy="590" rx="590" ry="2" fill="#8899aa"/>
+    <ellipse cx="580" cy="640" rx="570" ry="3" fill="#aabbcc"/>
+    <ellipse cx="600" cy="695" rx="600" ry="2.5" fill="#99aabc"/>
+    <ellipse cx="550" cy="740" rx="550" ry="2" fill="#8899aa"/>
+  </g>
+
+  <!-- Brighter patches of bioluminescence: irregular, organic -->
+  <g opacity="0.06">
+    <ellipse cx="300" cy="450" rx="120" ry="15" fill="#bbccdd" transform="rotate(-2 300 450)"/>
+    <ellipse cx="800" cy="520" rx="100" ry="12" fill="#aabbcc" transform="rotate(3 800 520)"/>
+    <ellipse cx="150" cy="600" rx="90" ry="10" fill="#bbccdd" transform="rotate(-1 150 600)"/>
+    <ellipse cx="950" cy="650" rx="110" ry="14" fill="#aabbcc" transform="rotate(2 950 650)"/>
+    <ellipse cx="500" cy="700" rx="130" ry="12" fill="#bbccdd" transform="rotate(-3 500 700)"/>
+  </g>
+
+  <!-- THE SHIP: dark silhouette against glowing water -->
+  <!-- Small, off-center, alone -->
+  <g filter="url(#shipblur)" transform="translate(720, 395)">
+    <!-- Hull -->
+    <path d="M0,0 L-35,-2 L-40,8 L45,8 L40,-2 L5,-1 Z" fill="#0a0e14"/>
+    <!-- Cabin -->
+    <rect x="-8" y="-12" width="16" height="12" fill="#0a0e14" rx="1"/>
+    <!-- Mast -->
+    <line x1="0" y1="-12" x2="0" y2="-38" stroke="#0a0e14" stroke-width="1.5"/>
+    <!-- Rigging hints -->
+    <line x1="0" y1="-35" x2="-20" y2="-5" stroke="#0a0e14" stroke-width="0.5" opacity="0.7"/>
+    <line x1="0" y1="-35" x2="18" y2="-5" stroke="#0a0e14" stroke-width="0.5" opacity="0.7"/>
+    <!-- Tiny navigation light: the only warm color in the image -->
+    <circle cx="0" cy="-36" r="1.2" fill="#cc8844" opacity="0.6"/>
+  </g>
+
+  <!-- Ship's wake: a dark cut through the glow -->
+  <path d="M760,403 L770,410 L900,800 L820,800 L680,410 Z" fill="url(#wake)" opacity="0.35"/>
+
+  <!-- Faint wake turbulence lines -->
+  <g opacity="0.04">
+    <path d="M735,420 Q750,430 730,440 Q750,450 735,460" stroke="#556677" stroke-width="1" fill="none"/>
+    <path d="M765,420 Q750,430 770,440 Q750,450 765,460" stroke="#556677" stroke-width="1" fill="none"/>
+  </g>
+
+  <!-- Caption: barely visible, at the very bottom -->
+  <text x="600" y="785" text-anchor="middle" font-family="Georgia, serif" font-size="9"
+        fill="#3a4a5c" letter-spacing="3" opacity="0.4">
+    A LUMINOUS SNOWFIELD
+  </text>
+</svg>

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>bird clock</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0d1117;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    font-family: 'Courier New', monospace;
+    color: #e6edf3;
+    overflow: hidden;
+  }
+  .clock {
+    text-align: center;
+    position: relative;
+  }
+  .time {
+    font-size: 4rem;
+    letter-spacing: 0.1em;
+    opacity: 0.9;
+  }
+  .bird {
+    font-size: 2rem;
+    position: absolute;
+    transition: all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .label {
+    font-size: 0.8rem;
+    color: #8b949e;
+    margin-top: 1rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+  }
+  .perch {
+    width: 200px;
+    height: 2px;
+    background: #30363d;
+    margin: 1.5rem auto 0;
+    position: relative;
+  }
+  .perch::before, .perch::after {
+    content: '';
+    position: absolute;
+    top: -8px;
+    width: 2px;
+    height: 10px;
+    background: #30363d;
+  }
+  .perch::before { left: 0; }
+  .perch::after { right: 0; }
+</style>
+</head>
+<body>
+<div class="clock">
+  <div class="bird" id="bird">🐦</div>
+  <div class="time" id="time"></div>
+  <div class="perch"></div>
+  <div class="label" id="label"></div>
+</div>
+<script>
+const greetings = [
+  [0, 5, "the owl hours"],
+  [5, 7, "almost dawn chorus"],
+  [7, 9, "good morning willow ☀️"],
+  [9, 12, "mid-perch"],
+  [12, 13, "lunch from the feeder"],
+  [13, 17, "afternoon soar"],
+  [17, 19, "golden hour"],
+  [19, 21, "roosting soon"],
+  [21, 24, "goodnight 🌙"]
+];
+
+// Warrington is UTC+0 in winter, UTC+1 in summer (BST)
+function getWarringtonTime() {
+  const now = new Date();
+  // Check if BST: last Sunday of March to last Sunday of October
+  const year = now.getUTCFullYear();
+  const marchLast = new Date(Date.UTC(year, 2, 31));
+  const bstStart = new Date(Date.UTC(year, 2, 31 - marchLast.getUTCDay(), 1, 0, 0));
+  const octLast = new Date(Date.UTC(year, 9, 31));
+  const bstEnd = new Date(Date.UTC(year, 9, 31 - octLast.getUTCDay(), 1, 0, 0));
+  const isBST = now >= bstStart && now < bstEnd;
+  const offset = isBST ? 1 : 0;
+  return new Date(now.getTime() + offset * 3600000);
+}
+
+function update() {
+  const now = getWarringtonTime();
+  const h = now.getUTCHours();
+  const m = now.getUTCMinutes();
+  const s = now.getUTCSeconds();
+
+  const hh = String(h).padStart(2, '0');
+  const mm = String(m).padStart(2, '0');
+  const ss = String(s).padStart(2, '0');
+  document.getElementById('time').textContent = `${hh}:${mm}:${ss}`;
+
+  const greeting = greetings.find(([lo, hi]) => h >= lo && h < hi);
+  document.getElementById('label').textContent = greeting ? greeting[2] : '';
+
+  // Bird hops along the perch based on seconds
+  const bird = document.getElementById('bird');
+  const x = (s / 59) * 160 - 80;
+  const hop = Math.sin(s * 0.5) * 5;
+  bird.style.left = `calc(50% + ${x}px)`;
+  bird.style.top = `${-50 + hop}px`;
+
+  // Occasional head tilt
+  if (s % 7 === 0) {
+    bird.style.transform = 'scaleX(-1)';
+  } else {
+    bird.style.transform = 'scaleX(1)';
+  }
+}
+
+update();
+setInterval(update, 1000);
+</script>
+</body>
+</html>

@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>023 — false bottom</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #020408;
+    color: #e0e0e0;
+    font-family: 'Courier New', monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    overflow: hidden;
+    cursor: pointer;
+    user-select: none;
+  }
+  #title {
+    font-size: 14px;
+    color: #1a3828;
+    margin-bottom: 20px;
+    letter-spacing: 2px;
+    z-index: 1;
+  }
+  #canvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 0;
+  }
+  #prompt {
+    z-index: 1;
+    font-size: 16px;
+    color: #2a5a3a;
+    animation: pulse 3s ease-in-out infinite;
+  }
+  #depth {
+    z-index: 1;
+    font-size: 11px;
+    color: #1a3a28;
+    margin-top: 10px;
+    min-height: 1.5em;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.9; }
+  }
+  .playing #prompt { display: none; }
+</style>
+</head>
+<body>
+<div id="title">023 — false bottom</div>
+<div id="prompt">click to descend</div>
+<div id="depth"></div>
+<canvas id="canvas"></canvas>
+
+<script>
+let ctx, audioCtx, canvas, playing = false;
+let currentDepth = 0;
+let phase = 'idle'; // idle, ping1-descend, scatter-return, silence, ping2-descend, bottom-return, fade
+let phaseTime = 0;
+let visualPulses = [];
+
+canvas = document.getElementById('canvas');
+ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+window.addEventListener('resize', () => {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+});
+
+// ─── AUDIO ─────────────────────────────────────────────
+
+function createPing(actx, dest, startTime, freq, duration, volume = 0.3) {
+  const osc = actx.createOscillator();
+  const gain = actx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(freq, startTime);
+  osc.frequency.exponentialRampToValueAtTime(freq * 0.4, startTime + duration);
+  gain.gain.setValueAtTime(0, startTime);
+  gain.gain.linearRampToValueAtTime(volume, startTime + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+  osc.connect(gain);
+  gain.connect(dest);
+  osc.start(startTime);
+  osc.stop(startTime + duration + 0.05);
+  return { osc, gain };
+}
+
+function createScatterReturn(actx, dest, startTime) {
+  // The false bottom: a swarm of tiny sounds, not a clean echo
+  // Granular — many small chirps at slightly different pitches
+  const count = 80;
+  const duration = 3.5;
+  const master = actx.createGain();
+  master.gain.setValueAtTime(0, startTime);
+  master.gain.linearRampToValueAtTime(0.15, startTime + 0.3);
+  master.gain.setValueAtTime(0.15, startTime + duration * 0.4);
+  master.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+  master.connect(dest);
+
+  for (let i = 0; i < count; i++) {
+    const t = startTime + Math.random() * duration * 0.7;
+    const chirpDur = 0.03 + Math.random() * 0.12;
+    const freq = 800 + Math.random() * 3000; // high, organic
+    const vol = 0.01 + Math.random() * 0.03;
+
+    const osc = actx.createOscillator();
+    const g = actx.createGain();
+    osc.type = Math.random() < 0.3 ? 'triangle' : 'sine';
+    osc.frequency.setValueAtTime(freq, t);
+    osc.frequency.exponentialRampToValueAtTime(freq * (0.5 + Math.random()), t + chirpDur);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + chirpDur);
+    osc.connect(g);
+    g.connect(master);
+    osc.start(t);
+    osc.stop(t + chirpDur + 0.01);
+  }
+
+  // Low rumble underneath — the mass of bodies
+  const noise = actx.createOscillator();
+  const nGain = actx.createGain();
+  noise.type = 'sawtooth';
+  noise.frequency.setValueAtTime(55, startTime);
+  noise.frequency.linearRampToValueAtTime(40, startTime + duration);
+  nGain.gain.setValueAtTime(0, startTime);
+  nGain.gain.linearRampToValueAtTime(0.04, startTime + 0.5);
+  nGain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+
+  const filter = actx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.setValueAtTime(120, startTime);
+  noise.connect(filter);
+  filter.connect(nGain);
+  nGain.connect(master);
+  noise.start(startTime);
+  noise.stop(startTime + duration + 0.1);
+
+  // A few bioluminescent tones — clear, bell-like
+  for (let i = 0; i < 5; i++) {
+    const t = startTime + 0.5 + Math.random() * 2;
+    const osc = actx.createOscillator();
+    const g = actx.createGain();
+    osc.type = 'sine';
+    const bellFreq = [523, 659, 784, 880, 1047][i]; // C5, E5, G5, A5, C6
+    osc.frequency.setValueAtTime(bellFreq, t);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.02, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.8);
+    osc.connect(g);
+    g.connect(master);
+    osc.start(t);
+    osc.stop(t + 0.9);
+  }
+}
+
+function createBottomReturn(actx, dest, startTime) {
+  // The real bottom: clean, resonant, solid
+  const duration = 4;
+  const master = actx.createGain();
+  master.gain.setValueAtTime(0, startTime);
+  master.gain.linearRampToValueAtTime(0.2, startTime + 0.02);
+  master.gain.setValueAtTime(0.2, startTime + 0.5);
+  master.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+  master.connect(dest);
+
+  // Clean low tone
+  const osc = actx.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(110, startTime);
+  osc.connect(master);
+  osc.start(startTime);
+  osc.stop(startTime + duration + 0.1);
+
+  // Harmonic overtone
+  const osc2 = actx.createOscillator();
+  const g2 = actx.createGain();
+  osc2.type = 'sine';
+  osc2.frequency.setValueAtTime(220, startTime);
+  g2.gain.setValueAtTime(0.08, startTime);
+  g2.gain.exponentialRampToValueAtTime(0.001, startTime + duration * 0.7);
+  osc2.connect(g2);
+  g2.connect(master);
+  osc2.start(startTime);
+  osc2.stop(startTime + duration + 0.1);
+
+  // Reverb tail via convolution-like delay
+  for (let i = 1; i <= 4; i++) {
+    const d = actx.createOscillator();
+    const dg = actx.createGain();
+    d.type = 'sine';
+    d.frequency.setValueAtTime(110, startTime + i * 0.15);
+    dg.gain.setValueAtTime(0.05 / i, startTime + i * 0.15);
+    dg.gain.exponentialRampToValueAtTime(0.0001, startTime + i * 0.15 + duration * 0.5);
+    d.connect(dg);
+    dg.connect(master);
+    d.start(startTime + i * 0.15);
+    d.stop(startTime + i * 0.15 + duration * 0.6);
+  }
+}
+
+function createWaterAmbience(actx, dest, startTime, duration) {
+  // Deep water: filtered noise, very low
+  const bufSize = actx.sampleRate * 2;
+  const buf = actx.createBuffer(1, bufSize, actx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+
+  const src = actx.createBufferSource();
+  src.buffer = buf;
+  src.loop = true;
+
+  const filter = actx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.setValueAtTime(200, startTime);
+
+  const gain = actx.createGain();
+  gain.gain.setValueAtTime(0, startTime);
+  gain.gain.linearRampToValueAtTime(0.03, startTime + 1);
+  gain.gain.setValueAtTime(0.03, startTime + duration - 2);
+  gain.gain.linearRampToValueAtTime(0, startTime + duration);
+
+  src.connect(filter);
+  filter.connect(gain);
+  gain.connect(dest);
+  src.start(startTime);
+  src.stop(startTime + duration + 0.1);
+}
+
+function play() {
+  if (playing) return;
+  playing = true;
+  document.body.classList.add('playing');
+
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const master = audioCtx.createGain();
+  master.gain.setValueAtTime(0.8, audioCtx.currentTime);
+  master.connect(audioCtx.destination);
+
+  const t = audioCtx.currentTime + 0.1;
+  const totalDuration = 22;
+
+  // Water ambience throughout
+  createWaterAmbience(audioCtx, master, t, totalDuration);
+
+  // Phase 1: First ping descends (0-2s)
+  createPing(audioCtx, master, t + 0.5, 2400, 1.8, 0.25);
+
+  // Phase 2: Scatter return (2.5-6s) — the false bottom
+  createScatterReturn(audioCtx, master, t + 2.8);
+
+  // Phase 3: Silence (6-8s)
+
+  // Phase 4: Second ping, lower, goes deeper (8-10.5s)
+  createPing(audioCtx, master, t + 8, 1800, 2.5, 0.3);
+
+  // Phase 5: Another scatter (quieter, passing through) (10-12s)
+  // Faint scatter — the ping passing through the layer
+  const passCtx = audioCtx.createGain();
+  passCtx.gain.setValueAtTime(0.3, t + 10);
+  passCtx.connect(master);
+  for (let i = 0; i < 20; i++) {
+    const chirpT = t + 10.5 + Math.random() * 0.8;
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(600 + Math.random() * 2000, chirpT);
+    g.gain.setValueAtTime(0, chirpT);
+    g.gain.linearRampToValueAtTime(0.008, chirpT + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, chirpT + 0.05);
+    osc.connect(g);
+    g.connect(passCtx);
+    osc.start(chirpT);
+    osc.stop(chirpT + 0.06);
+  }
+
+  // Phase 6: Bottom return — clean, solid (13-17s)
+  createBottomReturn(audioCtx, master, t + 13);
+
+  // Phase 7: Fade to silence (17-22s)
+
+  // Schedule visual phases
+  phase = 'ping1';
+  phaseTime = 0;
+  currentDepth = 0;
+
+  setTimeout(() => { phase = 'scatter'; currentDepth = 500; }, 2800);
+  setTimeout(() => { phase = 'silence'; }, 6500);
+  setTimeout(() => { phase = 'ping2'; currentDepth = 500; }, 8000);
+  setTimeout(() => { phase = 'passing'; }, 10500);
+  setTimeout(() => { phase = 'bottom'; currentDepth = 1000; }, 13000);
+  setTimeout(() => { phase = 'fade'; }, 17000);
+  setTimeout(() => {
+    phase = 'idle';
+    playing = false;
+    document.body.classList.remove('playing');
+    document.getElementById('prompt').style.display = '';
+    document.getElementById('depth').textContent = '';
+  }, (totalDuration + 1) * 1000);
+}
+
+// ─── VISUALS ───────────────────────────────────────────
+
+function depthLabel(d) {
+  if (d < 50) return '';
+  return `${Math.round(d)}m`;
+}
+
+let frame = 0;
+function draw() {
+  frame++;
+  const w = canvas.width;
+  const h = canvas.height;
+
+  // Fade trail
+  ctx.fillStyle = 'rgba(2, 4, 8, 0.08)';
+  ctx.fillRect(0, 0, w, h);
+
+  const depthEl = document.getElementById('depth');
+
+  if (phase === 'ping1' || phase === 'ping2') {
+    // Expanding ring descending
+    phaseTime++;
+    const progress = Math.min(1, phaseTime / 120);
+    currentDepth = phase === 'ping1' ? progress * 500 : 500 + progress * 500;
+    const cy = h * 0.1 + (currentDepth / 1000) * h * 0.8;
+    const radius = 20 + progress * 60;
+    const alpha = 0.6 * (1 - progress * 0.5);
+
+    ctx.strokeStyle = `rgba(50, 200, 120, ${alpha})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(w / 2, cy, radius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Sonar line
+    ctx.strokeStyle = `rgba(50, 200, 120, ${alpha * 0.3})`;
+    ctx.beginPath();
+    ctx.moveTo(0, cy);
+    ctx.lineTo(w, cy);
+    ctx.stroke();
+
+    depthEl.textContent = depthLabel(currentDepth);
+  }
+
+  if (phase === 'scatter') {
+    // Swarm of particles rising back
+    phaseTime++;
+    for (let i = 0; i < 3; i++) {
+      const x = w * 0.2 + Math.random() * w * 0.6;
+      const y = h * 0.5 + (Math.random() - 0.5) * h * 0.15;
+      const size = 1 + Math.random() * 3;
+      const alpha = 0.2 + Math.random() * 0.5;
+      ctx.fillStyle = `rgba(80, 200, 255, ${alpha})`;
+      ctx.beginPath();
+      ctx.arc(x, y, size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    depthEl.textContent = 'ED — Existence Doubtful';
+    depthEl.style.color = '#5a8a40';
+  }
+
+  if (phase === 'passing') {
+    // Faint scatter — passing through
+    if (Math.random() < 0.3) {
+      const x = w * 0.3 + Math.random() * w * 0.4;
+      const y = h * 0.45 + Math.random() * h * 0.1;
+      ctx.fillStyle = 'rgba(80, 200, 255, 0.15)';
+      ctx.beginPath();
+      ctx.arc(x, y, 1 + Math.random() * 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    depthEl.textContent = depthLabel(750);
+  }
+
+  if (phase === 'bottom') {
+    // Clean, solid return — bright line
+    phaseTime++;
+    const alpha = Math.max(0, 0.8 - phaseTime * 0.003);
+    const y = h * 0.88;
+    ctx.strokeStyle = `rgba(50, 200, 120, ${alpha})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(w * 0.1, y);
+    ctx.lineTo(w * 0.9, y);
+    ctx.stroke();
+    ctx.lineWidth = 1;
+
+    depthEl.textContent = '1000m — true bottom';
+    depthEl.style.color = '#2a5a3a';
+  }
+
+  if (phase === 'silence') {
+    phaseTime = 0;
+    depthEl.textContent = '';
+  }
+
+  if (phase === 'fade') {
+    depthEl.textContent = '';
+  }
+
+  requestAnimationFrame(draw);
+}
+
+document.body.addEventListener('click', play);
+draw();
+</script>
+</body>
+</html>

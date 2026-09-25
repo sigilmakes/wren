@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>012 — milky sea</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a12; overflow: hidden; font-family: Georgia, serif; }
+canvas { display: block; }
+#controls {
+  position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+  z-index: 10; text-align: center;
+}
+button {
+  background: none; border: 1px solid rgba(180,200,220,0.3);
+  color: rgba(180,200,220,0.6); padding: 8px 24px; cursor: pointer;
+  font-family: Georgia, serif; font-size: 14px; letter-spacing: 2px;
+}
+button:hover { border-color: rgba(180,200,220,0.6); color: rgba(180,200,220,0.9); }
+#phase-text {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  color: rgba(180,200,220,0); font-size: 14px; letter-spacing: 3px;
+  pointer-events: none; transition: color 3s; white-space: nowrap;
+}
+#title {
+  position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+  color: rgba(180,200,220,0.15); font-size: 11px; letter-spacing: 4px;
+  text-transform: uppercase;
+}
+</style>
+</head>
+<body>
+<div id="title">012 — milky sea</div>
+<canvas id="c"></canvas>
+<div id="phase-text"></div>
+<div id="controls">
+  <button id="btn" onclick="toggle()">begin</button>
+</div>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const phaseEl = document.getElementById('phase-text');
+const btn = document.getElementById('btn');
+let W, H;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+let audioCtx, playing = false, startTime = 0;
+const DURATION = 48; // total seconds
+const NUM_VOICES = 24;
+const THRESHOLD_TIME = 8; // seconds until quorum
+const PEAK_TIME = 20; // seconds at full glow
+const FADE_START = 32; // bacteria begin dying
+const SILENCE_START = 40; // the void
+const ANSWER_TIME = 44; // the fish, far away
+
+// Frequencies: cluster around a luminous chord (Cmaj9 spread thin)
+const BASE_FREQS = [
+  130.81, 164.81, 196.00, 246.94, 293.66, 329.63,
+  392.00, 440.00, 493.88, 523.25, 587.33, 659.25,
+  783.99, 880.00, 987.77, 1046.50, 1174.66, 1318.51,
+  1567.98, 1760.00, 1975.53, 2093.00, 2349.32, 2637.02
+];
+
+let voices = [];
+let particles = [];
+const NUM_PARTICLES = 600;
+
+// Phase tracking
+let phase = 'waiting'; // waiting, building, quorum, screaming, dying, silence, answer, done
+
+function showPhase(text) {
+  phaseEl.textContent = text;
+  phaseEl.style.color = 'rgba(180,200,220,0.4)';
+  setTimeout(() => { phaseEl.style.color = 'rgba(180,200,220,0)'; }, 4000);
+}
+
+function initParticles() {
+  particles = [];
+  for (let i = 0; i < NUM_PARTICLES; i++) {
+    particles.push({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      vx: (Math.random() - 0.5) * 0.3,
+      vy: (Math.random() - 0.5) * 0.3,
+      size: 1 + Math.random() * 2,
+      brightness: 0,
+      phase: Math.random() * Math.PI * 2,
+      alive: true,
+      deathTime: FADE_START + Math.random() * (SILENCE_START - FADE_START)
+    });
+  }
+}
+
+function toggle() {
+  if (playing) {
+    stop();
+  } else {
+    start();
+  }
+}
+
+function start() {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  startTime = audioCtx.currentTime;
+  playing = true;
+  btn.textContent = 'stop';
+  phase = 'building';
+
+  initParticles();
+
+  // Create voices that fade in one by one
+  const masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.15;
+
+  // Reverb via convolver
+  const convolver = audioCtx.createConvolver();
+  const reverbLen = audioCtx.sampleRate * 4;
+  const reverbBuf = audioCtx.createBuffer(2, reverbLen, audioCtx.sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const data = reverbBuf.getChannelData(ch);
+    for (let i = 0; i < reverbLen; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / reverbLen, 2.5);
+    }
+  }
+  convolver.buffer = reverbBuf;
+
+  const dryGain = audioCtx.createGain();
+  dryGain.gain.value = 0.5;
+  const wetGain = audioCtx.createGain();
+  wetGain.gain.value = 0.5;
+
+  masterGain.connect(dryGain).connect(audioCtx.destination);
+  masterGain.connect(convolver).connect(wetGain).connect(audioCtx.destination);
+
+  voices = [];
+  for (let i = 0; i < NUM_VOICES; i++) {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    const freq = BASE_FREQS[i] * (1 + (Math.random() - 0.5) * 0.008); // slight detune
+
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.value = 0;
+
+    // Each voice fades in at a staggered time (building toward quorum)
+    const fadeInStart = startTime + (i / NUM_VOICES) * THRESHOLD_TIME;
+    const fadeInEnd = fadeInStart + 2 + Math.random() * 2;
+
+    // Individual volume (higher voices quieter)
+    const vol = 0.8 / Math.sqrt(1 + i * 0.3);
+
+    gain.gain.setValueAtTime(0, fadeInStart);
+    gain.gain.linearRampToValueAtTime(vol, fadeInEnd);
+
+    // Hold through the scream
+    gain.gain.setValueAtTime(vol, startTime + FADE_START);
+
+    // Die at different times
+    const deathTime = startTime + FADE_START + (Math.random() * (SILENCE_START - FADE_START));
+    gain.gain.linearRampToValueAtTime(0, deathTime);
+
+    osc.connect(gain).connect(masterGain);
+    osc.start(fadeInStart);
+    osc.stop(startTime + SILENCE_START + 2);
+
+    voices.push({ osc, gain, fadeInStart: fadeInStart - startTime, freq, vol });
+  }
+
+  // The answer: a single low tone from far away
+  const answerOsc = audioCtx.createOscillator();
+  const answerGain = audioCtx.createGain();
+  answerOsc.type = 'sine';
+  answerOsc.frequency.value = 82.41; // E2, deep, distant
+  answerGain.gain.value = 0;
+  answerGain.gain.setValueAtTime(0, startTime + ANSWER_TIME);
+  answerGain.gain.linearRampToValueAtTime(0.06, startTime + ANSWER_TIME + 2);
+  answerGain.gain.linearRampToValueAtTime(0, startTime + DURATION);
+  answerOsc.connect(answerGain).connect(convolver);
+  answerOsc.start(startTime + ANSWER_TIME);
+  answerOsc.stop(startTime + DURATION + 2);
+
+  showPhase('is anyone there?');
+}
+
+function stop() {
+  if (audioCtx) {
+    audioCtx.close();
+    audioCtx = null;
+  }
+  playing = false;
+  btn.textContent = 'begin';
+  phase = 'waiting';
+  voices = [];
+}
+
+function getElapsed() {
+  if (!audioCtx || !playing) return 0;
+  return audioCtx.currentTime - startTime;
+}
+
+function getIntensity(t) {
+  if (t < THRESHOLD_TIME) return Math.pow(t / THRESHOLD_TIME, 2) * 0.6;
+  if (t < PEAK_TIME) return 0.6 + 0.4 * Math.min(1, (t - THRESHOLD_TIME) / 4);
+  if (t < FADE_START) return 1.0;
+  if (t < SILENCE_START) return 1.0 - ((t - FADE_START) / (SILENCE_START - FADE_START));
+  if (t < ANSWER_TIME) return 0;
+  if (t < DURATION) return 0.04; // the faintest glow — the answer
+  return 0;
+}
+
+function draw() {
+  const t = getElapsed();
+
+  // Background
+  const intensity = playing ? getIntensity(t) : 0;
+  const bgBlue = Math.floor(10 + intensity * 15);
+  ctx.fillStyle = `rgb(${Math.floor(10 + intensity * 5)}, ${Math.floor(10 + intensity * 8)}, ${bgBlue})`;
+  ctx.fillRect(0, 0, W, H);
+
+  // Phase text triggers
+  if (playing) {
+    if (t > THRESHOLD_TIME - 0.1 && phase === 'building') {
+      phase = 'quorum';
+      showPhase('the threshold');
+    }
+    if (t > PEAK_TIME && phase === 'quorum') {
+      phase = 'screaming';
+      showPhase('the scream');
+    }
+    if (t > FADE_START && phase === 'screaming') {
+      phase = 'dying';
+      showPhase('no fish comes');
+    }
+    if (t > SILENCE_START && phase === 'dying') {
+      phase = 'silence';
+      showPhase('');
+    }
+    if (t > ANSWER_TIME && phase === 'silence') {
+      phase = 'answer';
+      showPhase('somewhere, the correct response');
+    }
+    if (t > DURATION && phase === 'answer') {
+      phase = 'done';
+      stop();
+    }
+  }
+
+  // Draw particles
+  for (const p of particles) {
+    p.x += p.vx;
+    p.y += p.vy;
+    if (p.x < 0) p.x = W;
+    if (p.x > W) p.x = 0;
+    if (p.y < 0) p.y = H;
+    if (p.y > H) p.y = 0;
+
+    // Particle brightness based on phase
+    let targetBrightness = 0;
+    if (t < THRESHOLD_TIME) {
+      // Fade in one by one
+      const particleIndex = particles.indexOf(p);
+      const activeFraction = t / THRESHOLD_TIME;
+      const threshold = activeFraction * NUM_PARTICLES;
+      if (particleIndex < threshold) {
+        targetBrightness = 0.3 + 0.3 * Math.sin(p.phase + t * 0.5);
+      }
+    } else if (t < FADE_START) {
+      // All glowing — the scream
+      targetBrightness = 0.6 + 0.4 * Math.sin(p.phase + t * 0.3);
+    } else if (t < SILENCE_START) {
+      // Dying
+      if (t > p.deathTime) {
+        targetBrightness = 0;
+        p.alive = false;
+      } else {
+        targetBrightness = 0.6 + 0.4 * Math.sin(p.phase + t * 0.3);
+      }
+    } else if (t > ANSWER_TIME && t < DURATION) {
+      // The faintest answer — only a few particles
+      if (particles.indexOf(p) < 5) {
+        targetBrightness = 0.15;
+      }
+    }
+
+    p.brightness += (targetBrightness - p.brightness) * 0.05;
+
+    if (p.brightness > 0.01) {
+      const alpha = p.brightness;
+      // Blue-white glow
+      const r = Math.floor(180 + 75 * alpha);
+      const g = Math.floor(200 + 55 * alpha);
+      const b = Math.floor(220 + 35 * alpha);
+
+      // Glow halo
+      if (alpha > 0.3) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * 4, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha * 0.08})`;
+        ctx.fill();
+      }
+
+      // Core
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha * 0.7})`;
+      ctx.fill();
+    }
+  }
+
+  // During the scream phase, draw faint connection lines between nearby particles
+  if (t > THRESHOLD_TIME && t < SILENCE_START && intensity > 0.3) {
+    ctx.strokeStyle = `rgba(200, 220, 240, ${intensity * 0.015})`;
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i < particles.length; i += 3) {
+      for (let j = i + 1; j < Math.min(i + 10, particles.length); j += 3) {
+        const dx = particles[i].x - particles[j].x;
+        const dy = particles[i].y - particles[j].y;
+        const dist = dx * dx + dy * dy;
+        if (dist < 3000 && particles[i].alive && particles[j].alive) {
+          ctx.beginPath();
+          ctx.moveTo(particles[i].x, particles[i].y);
+          ctx.lineTo(particles[j].x, particles[j].y);
+          ctx.stroke();
+        }
+      }
+    }
+  }
+
+  requestAnimationFrame(draw);
+}
+
+draw();
+</script>
+</body>
+</html>

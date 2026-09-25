@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>014 — Crown Shyness</title>
+<style>
+  body { margin: 0; background: #0a0f0a; overflow: hidden; cursor: pointer; }
+  canvas { display: block; }
+  #info { position: fixed; bottom: 20px; left: 20px; color: #2a4a2a; font: 13px/1.4 monospace; opacity: 0.6; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="info">click to start · 014 — crown shyness</div>
+<script>
+// Crown Shyness: trees that read each other's shadows and maintain distance.
+// Each voice is a tree. They grow toward each other, sense proximity through
+// shared harmonics, and pull away — leaving gaps of silence between them.
+
+document.body.addEventListener('click', () => {
+  const info = document.getElementById('info');
+  info.style.opacity = '0';
+
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const canvas = document.getElementById('c');
+  const g = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  const NUM_TREES = 5;
+  const DURATION = 45;
+  const trees = [];
+
+  // Master output
+  const master = ctx.createGain();
+  master.gain.value = 0.15;
+  master.connect(ctx.destination);
+
+  // Reverb (forest canopy)
+  const convolver = ctx.createConvolver();
+  const reverbLen = 3 * ctx.sampleRate;
+  const reverbBuf = ctx.createBuffer(2, reverbLen, ctx.sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const data = reverbBuf.getChannelData(ch);
+    for (let i = 0; i < reverbLen; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / reverbLen, 2.5);
+    }
+  }
+  convolver.buffer = reverbBuf;
+  const wet = ctx.createGain();
+  wet.gain.value = 0.4;
+  convolver.connect(wet);
+  wet.connect(ctx.destination);
+
+  // Base frequencies — like different tree species
+  const baseFreqs = [110, 138.6, 164.8, 196, 246.9];
+
+  for (let i = 0; i < NUM_TREES; i++) {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const panner = ctx.createStereoPanner();
+    const filter = ctx.createBiquadFilter();
+
+    osc.type = 'sine';
+    osc.frequency.value = baseFreqs[i];
+
+    filter.type = 'lowpass';
+    filter.frequency.value = 800 + Math.random() * 400;
+    filter.Q.value = 2;
+
+    gain.gain.value = 0;
+    panner.pan.value = (i / (NUM_TREES - 1)) * 1.6 - 0.8;
+
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(panner);
+    panner.connect(master);
+    panner.connect(convolver);
+
+    // Add subtle harmonics (rustling)
+    const harm = ctx.createOscillator();
+    const harmGain = ctx.createGain();
+    harm.type = 'triangle';
+    harm.frequency.value = baseFreqs[i] * 3.01; // slightly detuned 3rd harmonic
+    harmGain.gain.value = 0;
+    harm.connect(harmGain);
+    harmGain.connect(gain);
+    harm.start(ctx.currentTime);
+
+    osc.start(ctx.currentTime);
+
+    trees.push({
+      osc, gain, panner, filter, harm, harmGain,
+      freq: baseFreqs[i],
+      volume: 0,
+      targetVolume: 0,
+      phase: Math.random() * Math.PI * 2,
+      growthRate: 0.3 + Math.random() * 0.4,
+      shyness: 0, // how much this tree is pulling away
+      x: (i + 0.5) / NUM_TREES, // normalized position
+      crown: 0.05, // crown radius, grows over time
+    });
+  }
+
+  // Wind noise (rustling through the canopy gaps)
+  const noiseLen = 2 * ctx.sampleRate;
+  const noiseBuf = ctx.createBuffer(1, noiseLen, ctx.sampleRate);
+  const noiseData = noiseBuf.getChannelData(0);
+  for (let i = 0; i < noiseLen; i++) {
+    noiseData[i] = Math.random() * 2 - 1;
+  }
+  const noise = ctx.createBufferSource();
+  noise.buffer = noiseBuf;
+  noise.loop = true;
+  const noiseFilter = ctx.createBiquadFilter();
+  noiseFilter.type = 'bandpass';
+  noiseFilter.frequency.value = 2000;
+  noiseFilter.Q.value = 0.5;
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.value = 0.02;
+  noise.connect(noiseFilter);
+  noiseFilter.connect(noiseGain);
+  noiseGain.connect(master);
+  noise.start(ctx.currentTime);
+
+  const startTime = ctx.currentTime;
+
+  function update() {
+    const elapsed = ctx.currentTime - startTime;
+    if (elapsed > DURATION + 4) return;
+
+    const progress = Math.min(elapsed / DURATION, 1);
+    const fadeOut = elapsed > DURATION - 5 ? Math.max(0, (DURATION - elapsed) / 5) : 1;
+    const fadeIn = Math.min(elapsed / 3, 1);
+
+    // Each tree grows its crown
+    for (let i = 0; i < trees.length; i++) {
+      const t = trees[i];
+      t.crown = Math.min(0.15, 0.02 + progress * 0.13 * t.growthRate);
+
+      // Check proximity to neighbors — crown shyness
+      t.shyness = 0;
+      for (let j = 0; j < trees.length; j++) {
+        if (i === j) continue;
+        const dist = Math.abs(t.x - trees[j].x);
+        const overlap = (t.crown + trees[j].crown) - dist;
+        if (overlap > 0) {
+          t.shyness += overlap * 5;
+        }
+      }
+
+      // Volume: grows with crown, retreats with shyness
+      const baseVol = Math.sin(t.phase + elapsed * 0.3) * 0.15 + 0.5;
+      const shynessReduction = Math.min(t.shyness * 2, 0.8);
+      t.targetVolume = Math.max(0.05, baseVol * (1 - shynessReduction)) * fadeIn * fadeOut;
+      t.volume += (t.targetVolume - t.volume) * 0.02;
+
+      t.gain.gain.setTargetAtTime(t.volume, ctx.currentTime, 0.1);
+
+      // Frequency shifts slightly when sensing neighbors (shade avoidance)
+      const freqShift = t.shyness * 15;
+      t.osc.frequency.setTargetAtTime(t.freq + freqShift, ctx.currentTime, 0.3);
+
+      // Harmonics increase when crowns approach (tension)
+      t.harmGain.gain.setTargetAtTime(t.shyness * 0.15 * fadeOut, ctx.currentTime, 0.1);
+
+      // Filter opens as tree grows
+      t.filter.frequency.setTargetAtTime(
+        600 + t.crown * 4000 * (1 - shynessReduction * 0.5),
+        ctx.currentTime, 0.2
+      );
+    }
+
+    // Wind varies
+    const windCycle = Math.sin(elapsed * 0.2) * 0.5 + 0.5;
+    noiseGain.gain.setTargetAtTime(0.01 + windCycle * 0.03 * fadeOut, ctx.currentTime, 0.3);
+    noiseFilter.frequency.setTargetAtTime(1500 + windCycle * 2000, ctx.currentTime, 0.5);
+
+    // Draw
+    g.fillStyle = 'rgba(10, 15, 10, 0.08)';
+    g.fillRect(0, 0, canvas.width, canvas.height);
+
+    for (let i = 0; i < trees.length; i++) {
+      const t = trees[i];
+      const cx = t.x * canvas.width;
+      const cy = canvas.height * 0.45;
+      const r = t.crown * canvas.width * 0.5;
+
+      // Crown circle
+      const alpha = t.volume * 0.6;
+      const shy = Math.min(t.shyness, 1);
+
+      // Glow — green when growing, shifts amber when shy
+      const red = Math.floor(30 + shy * 80);
+      const green = Math.floor(120 + (1 - shy) * 60 - shy * 30);
+      const blue = Math.floor(30 + (1 - shy) * 20);
+
+      // Draw crown as overlapping circles
+      for (let k = 3; k >= 0; k--) {
+        const kr = r * (1 + k * 0.3);
+        const ka = alpha * (0.15 - k * 0.03);
+        g.beginPath();
+        g.arc(cx, cy, kr, 0, Math.PI * 2);
+        g.fillStyle = `rgba(${red}, ${green}, ${blue}, ${ka})`;
+        g.fill();
+      }
+
+      // Gap lines — the shyness made visible
+      if (i < trees.length - 1) {
+        const next = trees[i + 1];
+        const gapX = (t.x + next.x) / 2 * canvas.width;
+        const gapWidth = Math.max(2, (1 - Math.min(t.shyness + next.shyness, 1)) * 3);
+
+        g.beginPath();
+        g.moveTo(gapX, cy - r * 1.5);
+        g.lineTo(gapX, cy + r * 1.5);
+        g.strokeStyle = `rgba(180, 200, 180, ${0.05 + (t.shyness + next.shyness) * 0.1})`;
+        g.lineWidth = gapWidth;
+        g.stroke();
+      }
+    }
+
+    // Title fade in
+    if (elapsed < 6) {
+      const ta = Math.min(elapsed / 3, 1) * 0.4;
+      g.fillStyle = `rgba(100, 140, 100, ${ta})`;
+      g.font = '14px monospace';
+      g.fillText('crown shyness', 20, 30);
+    }
+
+    requestAnimationFrame(update);
+  }
+
+  update();
+
+  // Stop after duration
+  setTimeout(() => {
+    trees.forEach(t => {
+      t.osc.stop();
+      t.harm.stop();
+    });
+    noise.stop();
+  }, (DURATION + 4) * 1000);
+
+}, { once: true });
+</script>
+</body>
+</html>

@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>016 — negative damping</title>
+<style>
+  body { margin: 0; background: #0a0a0c; overflow: hidden; cursor: crosshair; }
+  canvas { display: block; }
+  #info {
+    position: fixed; bottom: 20px; left: 20px;
+    color: #333; font: 11px/1.4 monospace;
+    pointer-events: none; transition: opacity 2s;
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="info">click to walk on the bridge<br>each step fights the wobble<br>each correction feeds it</div>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// audio
+const ac = new (window.AudioContext || window.webkitAudioContext)();
+const master = ac.createGain();
+master.gain.value = 0.15;
+master.connect(ac.destination);
+
+// the bridge — a single resonant frequency
+const bridgeFreq = 0.48; // Hz — the millennium bridge's lateral mode was ~0.5 Hz
+let bridgePhase = 0;
+let bridgeAmplitude = 0;
+let bridgeVelocity = 0;
+const bridgeDamping = 0.003; // natural damping
+const bridgeStiffness = (2 * Math.PI * bridgeFreq) ** 2;
+
+// pedestrians — each one an independent corrector
+const walkers = [];
+const maxWalkers = 200;
+const criticalNumber = 166; // the real threshold
+
+class Walker {
+  constructor(x) {
+    this.x = x;
+    this.phase = Math.random() * Math.PI * 2;
+    this.freq = 0.8 + Math.random() * 0.5; // walking frequency 0.8-1.3 Hz
+    this.lateralGain = 0.0003 + Math.random() * 0.0002; // how much they push
+    this.y = H * 0.5;
+    this.personalSway = 0;
+    this.opacity = 0;
+    this.fadeIn = true;
+
+    // each walker gets a quiet tone
+    this.osc = ac.createOscillator();
+    this.gain = ac.createGain();
+    this.osc.type = 'sine';
+    this.osc.frequency.value = 120 + Math.random() * 80; // 120-200 Hz
+    this.gain.gain.value = 0;
+    this.osc.connect(this.gain);
+    this.gain.connect(master);
+    this.osc.start();
+  }
+
+  update(dt, bridgeDisplacement) {
+    this.phase += this.freq * dt * Math.PI * 2;
+
+    // the key insight: each walker tries to correct for bridge motion
+    // but the correction transfers energy INTO the bridge
+    const correction = -bridgeDisplacement * this.lateralGain;
+    this.personalSway = Math.sin(this.phase) * 3 + bridgeDisplacement * 30;
+
+    // fade in
+    if (this.fadeIn && this.opacity < 1) this.opacity = Math.min(1, this.opacity + dt * 0.5);
+
+    // audio — each walker's tone wobbles with the bridge
+    const wobbleAmount = Math.abs(bridgeDisplacement) * 500;
+    this.osc.frequency.value = (140 + Math.random() * 40) + wobbleAmount;
+    this.gain.gain.value = Math.min(0.008, this.opacity * 0.004 * (1 + Math.abs(bridgeDisplacement) * 20));
+
+    return correction; // the force they apply back to the bridge
+  }
+
+  destroy() {
+    this.gain.gain.setValueAtTime(this.gain.gain.value, ac.currentTime);
+    this.gain.gain.linearRampToValueAtTime(0, ac.currentTime + 0.5);
+    setTimeout(() => { this.osc.stop(); }, 600);
+  }
+}
+
+// bridge resonance tone
+const bridgeOsc = ac.createOscillator();
+const bridgeGain = ac.createGain();
+const bridgeFilter = ac.createBiquadFilter();
+bridgeOsc.type = 'sine';
+bridgeOsc.frequency.value = 55; // sub-bass representing the bridge mode
+bridgeGain.gain.value = 0;
+bridgeFilter.type = 'lowpass';
+bridgeFilter.frequency.value = 100;
+bridgeOsc.connect(bridgeFilter);
+bridgeFilter.connect(bridgeGain);
+bridgeGain.connect(master);
+bridgeOsc.start();
+
+// click to add walkers
+let started = false;
+canvas.addEventListener('click', (e) => {
+  if (!started) {
+    ac.resume();
+    started = true;
+    document.getElementById('info').style.opacity = '0';
+  }
+
+  if (walkers.length < maxWalkers) {
+    const walker = new Walker(e.clientX);
+    walkers.push(walker);
+  }
+});
+
+// auto-add walkers slowly on hold
+let mouseDown = false;
+let autoAddInterval;
+canvas.addEventListener('mousedown', () => {
+  mouseDown = true;
+  autoAddInterval = setInterval(() => {
+    if (mouseDown && walkers.length < maxWalkers) {
+      const x = Math.random() * W;
+      walkers.push(new Walker(x));
+    }
+  }, 100);
+});
+canvas.addEventListener('mouseup', () => { mouseDown = false; clearInterval(autoAddInterval); });
+
+// simulation
+let lastTime = performance.now();
+
+function simulate() {
+  const now = performance.now();
+  const dt = Math.min((now - lastTime) / 1000, 0.05);
+  lastTime = now;
+
+  // accumulate forces from all walkers
+  let totalForce = 0;
+  for (const w of walkers) {
+    totalForce += w.update(dt, bridgeAmplitude);
+  }
+
+  // bridge dynamics: damped harmonic oscillator + walker forcing
+  const acceleration = -bridgeStiffness * bridgeAmplitude - bridgeDamping * bridgeVelocity + totalForce;
+  bridgeVelocity += acceleration * dt;
+  bridgeAmplitude += bridgeVelocity * dt;
+
+  // bridge audio
+  const absAmp = Math.abs(bridgeAmplitude);
+  bridgeGain.gain.value = Math.min(0.3, absAmp * 8);
+  bridgeOsc.frequency.value = 55 + absAmp * 200;
+
+  // draw
+  ctx.fillStyle = `rgba(10, 10, 12, ${0.15})`;
+  ctx.fillRect(0, 0, W, H);
+
+  // bridge deck
+  const deckY = H * 0.55;
+  const sway = bridgeAmplitude * 300;
+
+  ctx.strokeStyle = `rgba(${60 + absAmp * 800}, ${60 - absAmp * 200}, ${70 - absAmp * 200}, 0.6)`;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let x = 0; x < W; x += 2) {
+    const t = x / W;
+    const mode = Math.sin(t * Math.PI); // first mode shape
+    const y = deckY + sway * mode + Math.sin(x * 0.01 + now * 0.001) * 0.5;
+    if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // cables
+  ctx.strokeStyle = `rgba(40, 40, 50, 0.3)`;
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 20; i++) {
+    const x = (i + 0.5) * W / 20;
+    const t = x / W;
+    const mode = Math.sin(t * Math.PI);
+    const topY = deckY - 60;
+    const botY = deckY + sway * mode;
+    ctx.beginPath();
+    ctx.moveTo(x + sway * mode * 0.3, topY);
+    ctx.lineTo(x + sway * mode, botY);
+    ctx.stroke();
+  }
+
+  // walkers
+  for (const w of walkers) {
+    const t = w.x / W;
+    const mode = Math.sin(t * Math.PI);
+    const baseY = deckY + sway * mode - 8;
+
+    ctx.fillStyle = `rgba(180, 180, 200, ${w.opacity * 0.6})`;
+    ctx.beginPath();
+    ctx.arc(w.x + w.personalSway + sway * mode, baseY, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // counter
+  const count = walkers.length;
+  ctx.fillStyle = count >= criticalNumber ? `rgba(255, 80, 60, 0.8)` : `rgba(100, 100, 120, 0.5)`;
+  ctx.font = '13px monospace';
+  ctx.fillText(`${count} / ${criticalNumber}`, 20, 30);
+
+  if (count > 0 && count < criticalNumber) {
+    ctx.fillStyle = 'rgba(60, 60, 80, 0.3)';
+    ctx.fillText('stable', 20, 48);
+  } else if (count >= criticalNumber) {
+    ctx.fillStyle = 'rgba(255, 80, 60, 0.5)';
+    ctx.fillText('negative damping', 20, 48);
+  }
+
+  // amplitude meter
+  if (count > 0) {
+    ctx.fillStyle = 'rgba(60, 60, 80, 0.3)';
+    ctx.fillText(`amplitude: ${absAmp.toFixed(4)}`, 20, 66);
+  }
+
+  requestAnimationFrame(simulate);
+}
+
+simulate();
+</script>
+</body>
+</html>

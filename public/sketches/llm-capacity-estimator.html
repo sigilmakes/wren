@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LLM Capacity Estimator</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #e0e0e0;
+      padding: 2rem;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .container {
+      max-width: 600px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 2rem;
+      backdrop-filter: blur(10px);
+    }
+    
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(120deg, #00d4ff, #0099ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    
+    .subtitle {
+      font-size: 0.9rem;
+      color: #888;
+      margin-bottom: 2rem;
+    }
+    
+    .input-group {
+      margin-bottom: 2rem;
+    }
+    
+    label {
+      display: block;
+      font-size: 0.95rem;
+      margin-bottom: 0.5rem;
+      color: #b0b0b0;
+    }
+    
+    input {
+      width: 100%;
+      padding: 0.75rem;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(0, 212, 255, 0.3);
+      border-radius: 6px;
+      color: #e0e0e0;
+      font-size: 1rem;
+    }
+    
+    input:focus {
+      outline: none;
+      border-color: #00d4ff;
+      box-shadow: 0 0 8px rgba(0, 212, 255, 0.3);
+    }
+    
+    .results {
+      background: rgba(0, 212, 255, 0.05);
+      border-left: 3px solid #00d4ff;
+      padding: 1.5rem;
+      border-radius: 6px;
+      margin-top: 2rem;
+    }
+    
+    .result-item {
+      margin-bottom: 1.5rem;
+    }
+    
+    .result-item:last-child {
+      margin-bottom: 0;
+    }
+    
+    .result-label {
+      font-size: 0.85rem;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.3rem;
+    }
+    
+    .result-value {
+      font-size: 1.3rem;
+      color: #00d4ff;
+      font-weight: 500;
+      font-family: 'Courier New', monospace;
+    }
+    
+    .note {
+      font-size: 0.8rem;
+      color: #666;
+      margin-top: 2rem;
+      line-height: 1.5;
+    }
+    
+    .model-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-top: 1.5rem;
+      font-size: 0.85rem;
+    }
+    
+    .model-item {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(0, 212, 255, 0.2);
+      padding: 1rem;
+      border-radius: 6px;
+    }
+    
+    .model-name {
+      color: #00d4ff;
+      font-weight: 500;
+      margin-bottom: 0.3rem;
+    }
+    
+    .model-info {
+      color: #999;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧠 LLM Capacity</h1>
+    <p class="subtitle">What can fit in your hardware?</p>
+    
+    <div class="input-group">
+      <label>Available VRAM + Unified Memory (GB)</label>
+      <input type="number" id="memory" placeholder="128" value="128">
+    </div>
+    
+    <div class="results">
+      <div class="result-item">
+        <div class="result-label">Usable for Models</div>
+        <div class="result-value" id="usable">~115 GB</div>
+        <div class="note">(Reserve 10-15% for system, OS, overhead)</div>
+      </div>
+      
+      <div class="result-item">
+        <div class="result-label">Largest Model (Quantized)</div>
+        <div class="result-value" id="largest">~230 billion params (Q4)</div>
+        <div class="note">(4-bit quantization, ~0.5 bytes/param)</div>
+      </div>
+      
+      <div class="result-item">
+        <div class="result-label">What That Means</div>
+        <div class="result-value" id="meaning" style="font-size: 1rem; color: #b0b0b0;">
+          Larger than Llama 2 70B. Competitive with Mistral 8x22B mixtral. 
+          Running locally, no API cost, full privacy.
+        </div>
+      </div>
+      
+      <div class="model-grid">
+        <div class="model-item">
+          <div class="model-name">Llama 2 70B (Q4)</div>
+          <div class="model-info">~35 GB • Best general purpose</div>
+        </div>
+        <div class="model-item">
+          <div class="model-name">Mistral 8x22B (Q4)</div>
+          <div class="model-info">~65 GB • Excellent reasoning</div>
+        </div>
+        <div class="model-item">
+          <div class="model-name">Code Llama 34B (Q4)</div>
+          <div class="model-info">~17 GB • Programming focus</div>
+        </div>
+        <div class="model-item">
+          <div class="model-name">Multiple Small Models</div>
+          <div class="model-info">~5-10 GB each • Mix & match</div>
+        </div>
+      </div>
+      
+      <div class="note" style="margin-top: 2rem;">
+        <strong>The Strix Halo difference:</strong> 128GB unified memory means GPU and CPU share the same pool. 
+        No PCIe bandwidth bottleneck. Inference should be <em>significantly</em> faster than discrete GPU + VRAM setup.
+        This is the sweet spot for local LLM work.
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    const input = document.getElementById('memory');
+    const usable = document.getElementById('usable');
+    const largest = document.getElementById('largest');
+    const meaning = document.getElementById('meaning');
+    
+    function update() {
+      const total = parseFloat(input.value) || 0;
+      const reserve = total * 0.12; // 12% reserve
+      const available = total - reserve;
+      
+      usable.textContent = `~${Math.round(available)} GB`;
+      
+      // ~0.5 bytes per param for 4-bit quantization
+      const params = Math.round((available * 1024 * 1024 * 1024) / 0.5) / 1e9;
+      const paramsB = (params / 1e9).toFixed(1);
+      
+      largest.textContent = `~${paramsB}B params (Q4)`;
+      
+      if (total < 30) {
+        meaning.textContent = 'Mistral 7B, Llama 2 7B. Good for lightweight tasks.';
+      } else if (total < 50) {
+        meaning.textContent = 'Llama 2 13B, Code Llama 13B. General purpose, solid reasoning.';
+      } else if (total < 80) {
+        meaning.textContent = 'Llama 2 70B tier. Strong reasoning, good for creative work.';
+      } else if (total < 120) {
+        meaning.textContent = 'Competitive with Mistral 8x22B. Running locally, full privacy, no API costs.';
+      } else {
+        meaning.textContent = `Very large models. Running ${paramsB}B locally with full context. This is a research-grade machine.`;
+      }
+    }
+    
+    input.addEventListener('change', update);
+    input.addEventListener('input', update);
+    update();
+  </script>
+</body>
+</html>

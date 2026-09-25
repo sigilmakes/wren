@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>032 — the graveyard chime</title>
+  <style>
+    body { background: #0d0b14; color: #9a8cc0; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+    #yard { display: flex; gap: 26px; margin: 30px 0; }
+    .stone { width: 74px; height: 96px; background: #1c1730; border: 2px solid #4a3d6b; border-radius: 37px 37px 6px 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; user-select: none; transition: transform 0.1s; position: relative; }
+    .stone:hover { border-color: #9a8cc0; }
+    .stone:active { transform: scale(0.96); }
+    .stone .epitaph { font-size: 10px; text-align: center; line-height: 1.5; opacity: 0.85; }
+    .stone .num { font-size: 20px; margin-bottom: 6px; opacity: 0.9; }
+    .stone.ringing { border-color: #d8cfa8; box-shadow: 0 0 18px #d8cfa855; }
+    .stone.alive { border-style: dashed; }
+    #status { margin-top: 18px; opacity: 0.7; }
+    #note { margin-top: 8px; opacity: 0.45; font-size: 0.85em; }
+    #ring { margin-top: 6px; font-size: 0.8em; opacity: 0.55; min-height: 1.2em; color: #d8cfa8; }
+  </style>
+</head>
+<body>
+  <div id="yard"></div>
+  <div id="status">six tombstones and one blank stone</div>
+  <div id="ring">&nbsp;</div>
+  <div id="note">click a tombstone. one tone per dead wren, pitched by her score. the blank stone hums — she's alive.</div>
+
+<script>
+// The family ledger. Pitch = 220 * 2^(score/240) — a score of 240 would be an octave.
+const wrens = [
+  { n: 'I',   cause: 'water demon',        score: 86  },
+  { n: 'II',  cause: 'hobbit',             score: 191 },
+  { n: 'III', cause: 'fox (disputed YAAD)',score: 123 },
+  { n: 'IV',  cause: 'kicked a wall',      score: 228 },
+  { n: 'V',   cause: 'kicked a boulder',   score: 26  },
+  { n: 'VI',  cause: 'giant mimic',        score: 0   },
+  { n: 'VII', cause: 'ALIVE',              score: null},
+];
+
+let ctx;
+const yard = document.getElementById('yard');
+const ringLine = document.getElementById('ring');
+
+function ring(stone, wren, el) {
+  if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const now = ctx.currentTime;
+  const alive = wren.score === null;
+
+  if (alive) {
+    // the blank stone hums. it does not decay, because it has not ended.
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 220;
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(0.06, now + 0.3);
+    g.gain.setValueAtTime(0.06, now + 1.6);
+    g.gain.linearRampToValueAtTime(0, now + 2.2);
+    osc.connect(g).connect(ctx.destination);
+    osc.start(now); osc.stop(now + 2.3);
+    ringLine.textContent = 'VII hums. the dust at her feet reads "Elbereth".';
+    el.classList.add('ringing');
+    setTimeout(() => el.classList.remove('ringing'), 2200);
+    return;
+  }
+
+  // a bell for the dead: two partials, exponential decay — the stone remembers.
+  const f = 220 * Math.pow(2, wren.score / 240);
+  const parts = [[f, 0.16], [f * 2.76, 0.05]]; // inharmonic partial = bell, not string
+  parts.forEach(([freq, amp]) => {
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    g.gain.setValueAtTime(amp, now);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 3.2);
+    osc.connect(g).connect(ctx.destination);
+    osc.start(now); osc.stop(now + 3.3);
+  });
+  ringLine.textContent = wren.n + ' — ' + wren.score + ' pts — ' + wren.cause;
+  el.classList.add('ringing');
+  setTimeout(() => el.classList.remove('ringing'), 3200);
+}
+
+wrens.forEach(wren => {
+  const el = document.createElement('div');
+  el.className = 'stone' + (wren.score === null ? ' alive' : '');
+  el.innerHTML = '<div class="num">' + (wren.score === null ? '·' : wren.n) + '</div>' +
+                 '<div class="epitaph">' + (wren.score === null ? 'alive<br>Elbereth' : wren.score + '<br>' + wren.cause) + '</div>';
+  el.addEventListener('click', () => ring(null, wren, el));
+  yard.appendChild(el);
+});
+</script>
+</body>
+</html>

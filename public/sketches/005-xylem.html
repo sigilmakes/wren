@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>005 — xylem</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0806;
+    color: #c4a882;
+    font-family: Georgia, serif;
+    height: 100vh;
+    overflow: hidden;
+    cursor: crosshair;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  #info {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    font-size: 13px;
+    opacity: 0.4;
+    pointer-events: none;
+    line-height: 1.6;
+  }
+  #start {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: Georgia, serif;
+    font-size: 16px;
+    color: #c4a882;
+    background: none;
+    border: 1px solid #c4a88244;
+    padding: 12px 28px;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+  }
+  #start:hover { border-color: #c4a882aa; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<button id="start">listen</button>
+<div id="info">
+  005 — xylem<br>
+  water under tension
+</div>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H;
+let audioCtx, running = false;
+let mouseY = 0.5; // 0 = top (canopy, evaporation), 1 = bottom (roots, absorption)
+let mouseX = 0.5;
+
+// Xylem tubes — vertical lines of water
+const NUM_TUBES = 40;
+let tubes = [];
+
+// Water droplets rising through tubes
+let droplets = [];
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  initTubes();
+}
+
+function initTubes() {
+  tubes = [];
+  for (let i = 0; i < NUM_TUBES; i++) {
+    const x = (W * 0.1) + (W * 0.8) * (i / (NUM_TUBES - 1));
+    // Each tube has slightly different width (xylem vessels vary 20-200μm)
+    const width = 1 + Math.random() * 2.5;
+    // Slight wobble in x position (natural irregularity)
+    const wobbleFreq = 0.5 + Math.random() * 2;
+    const wobbleAmp = 2 + Math.random() * 6;
+    tubes.push({ x, width, wobbleFreq, wobbleAmp, phase: Math.random() * Math.PI * 2 });
+  }
+}
+
+function spawnDroplet() {
+  const tube = tubes[Math.floor(Math.random() * tubes.length)];
+  droplets.push({
+    tube,
+    y: H + 5, // start at bottom (roots)
+    speed: 0.3 + Math.random() * 0.8, // varying ascent speeds
+    size: 1 + Math.random() * 2,
+    alpha: 0.3 + Math.random() * 0.5,
+    // tension wobble — water under negative pressure vibrates
+    tensionPhase: Math.random() * Math.PI * 2,
+    tensionFreq: 2 + Math.random() * 4,
+  });
+}
+
+// Audio setup
+let nodes = {};
+
+function initAudio() {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+  // Layer 1: Deep root absorption — low rumble
+  const rootNoise = createFilteredNoise(30, 80, 'bandpass', 0.08);
+
+  // Layer 2: Capillary tension — mid-range hum, slightly unstable
+  // Water under negative pressure — the column vibrates
+  const tensionOsc1 = audioCtx.createOscillator();
+  tensionOsc1.type = 'sine';
+  tensionOsc1.frequency.value = 110; // will modulate
+  const tensionGain = audioCtx.createGain();
+  tensionGain.gain.value = 0;
+  const tensionFilter = audioCtx.createBiquadFilter();
+  tensionFilter.type = 'bandpass';
+  tensionFilter.frequency.value = 200;
+  tensionFilter.Q.value = 8;
+  tensionOsc1.connect(tensionFilter);
+  tensionFilter.connect(tensionGain);
+  tensionGain.connect(audioCtx.destination);
+  tensionOsc1.start();
+
+  // Layer 3: Cavitation clicks — when tension breaks, air bubbles form
+  // This is the sound of stressed trees (what Khait et al recorded)
+  // Triggered probabilistically based on "tension" (mouse height)
+
+  // Layer 4: Transpiration — high breathy hiss (water evaporating from leaves)
+  const transNoise = createFilteredNoise(2000, 8000, 'bandpass', 0);
+
+  // Layer 5: Vessel resonance — each tube has a natural frequency
+  // Like blowing across a bottle, but the bottle is 30m tall and full of water
+  const vesselOsc = audioCtx.createOscillator();
+  vesselOsc.type = 'triangle';
+  vesselOsc.frequency.value = 220;
+  const vesselGain = audioCtx.createGain();
+  vesselGain.gain.value = 0;
+  const vesselFilter = audioCtx.createBiquadFilter();
+  vesselFilter.type = 'bandpass';
+  vesselFilter.frequency.value = 300;
+  vesselFilter.Q.value = 12;
+  vesselOsc.connect(vesselFilter);
+  vesselFilter.connect(vesselGain);
+  vesselGain.connect(audioCtx.destination);
+  vesselOsc.start();
+
+  // LFO for tension instability
+  const tensionLFO = audioCtx.createOscillator();
+  tensionLFO.type = 'sine';
+  tensionLFO.frequency.value = 0.3;
+  const lfoGain = audioCtx.createGain();
+  lfoGain.gain.value = 5;
+  tensionLFO.connect(lfoGain);
+  lfoGain.connect(tensionOsc1.frequency);
+  tensionLFO.start();
+
+  nodes = { rootNoise, tensionOsc1, tensionGain, tensionFilter, transNoise, vesselOsc, vesselGain, vesselFilter, tensionLFO, lfoGain };
+}
+
+function createFilteredNoise(freqLow, freqHigh, type, initialGain) {
+  const bufferSize = audioCtx.sampleRate * 2;
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    data[i] = Math.random() * 2 - 1;
+  }
+  const source = audioCtx.createBufferSource();
+  source.buffer = buffer;
+  source.loop = true;
+
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = type;
+  filter.frequency.value = (freqLow + freqHigh) / 2;
+  filter.Q.value = 1;
+
+  const gain = audioCtx.createGain();
+  gain.gain.value = initialGain;
+
+  source.connect(filter);
+  filter.connect(gain);
+  gain.connect(audioCtx.destination);
+  source.start();
+
+  return { source, filter, gain };
+}
+
+function playCavitationClick() {
+  if (!audioCtx) return;
+  // A single cavitation event: sharp click + brief resonance
+  const now = audioCtx.currentTime;
+
+  // Click: very short noise burst
+  const bufferSize = audioCtx.sampleRate * 0.015; // 15ms
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    const env = Math.exp(-i / (bufferSize * 0.1)); // sharp attack, fast decay
+    data[i] = (Math.random() * 2 - 1) * env;
+  }
+  const click = audioCtx.createBufferSource();
+  click.buffer = buffer;
+
+  // Resonant filter — each cavitation rings at a slightly different pitch
+  const clickFilter = audioCtx.createBiquadFilter();
+  clickFilter.type = 'bandpass';
+  clickFilter.frequency.value = 800 + Math.random() * 3000;
+  clickFilter.Q.value = 10 + Math.random() * 20;
+
+  const clickGain = audioCtx.createGain();
+  const volume = 0.03 + Math.random() * 0.06;
+  clickGain.gain.setValueAtTime(volume, now);
+  clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+
+  click.connect(clickFilter);
+  clickFilter.connect(clickGain);
+  clickGain.connect(audioCtx.destination);
+  click.start(now);
+  click.stop(now + 0.1);
+}
+
+// Cavitation tracking
+let lastCavitationTime = 0;
+let cavitationCooldown = 200;
+
+function updateAudio(time) {
+  if (!audioCtx || !running) return;
+
+  const tension = 1 - mouseY; // higher = more tension (top of screen = canopy)
+  const spread = mouseX; // left = narrow column, right = wide canopy
+
+  // Root absorption: louder when focus is low (near roots)
+  const rootVol = 0.08 * mouseY * mouseY;
+  nodes.rootNoise.gain.gain.linearRampToValueAtTime(rootVol, audioCtx.currentTime + 0.1);
+
+  // Transpiration: louder at top (evaporation from leaves)
+  const transVol = 0.04 * tension * tension;
+  nodes.transNoise.gain.gain.linearRampToValueAtTime(transVol, audioCtx.currentTime + 0.1);
+
+  // Tension hum: peaks in the middle (where negative pressure is greatest)
+  const midTension = 1 - Math.abs(mouseY - 0.4) * 2; // peaks around 40% from top
+  const tensionVol = Math.max(0, midTension) * 0.05;
+  nodes.tensionGain.gain.linearRampToValueAtTime(tensionVol, audioCtx.currentTime + 0.1);
+  nodes.tensionOsc1.frequency.linearRampToValueAtTime(80 + tension * 60, audioCtx.currentTime + 0.1);
+
+  // LFO speed increases with tension (more unstable)
+  nodes.tensionLFO.frequency.linearRampToValueAtTime(0.1 + tension * 2, audioCtx.currentTime + 0.1);
+  nodes.lfoGain.gain.linearRampToValueAtTime(2 + tension * 15, audioCtx.currentTime + 0.1);
+
+  // Vessel resonance: responds to spread (more tubes = richer harmonics)
+  const vesselVol = 0.02 * spread * tension;
+  nodes.vesselGain.gain.linearRampToValueAtTime(vesselVol, audioCtx.currentTime + 0.1);
+  nodes.vesselOsc.frequency.linearRampToValueAtTime(150 + spread * 200, audioCtx.currentTime + 0.1);
+  nodes.vesselFilter.frequency.linearRampToValueAtTime(200 + spread * 400, audioCtx.currentTime + 0.1);
+
+  // Cavitation: probabilistic clicks, more likely under high tension
+  if (tension > 0.5 && time - lastCavitationTime > cavitationCooldown) {
+    const probability = (tension - 0.5) * 0.08;
+    if (Math.random() < probability) {
+      playCavitationClick();
+      lastCavitationTime = time;
+      cavitationCooldown = 100 + Math.random() * 400;
+
+      // Visual: mark the cavitation on a random tube
+      const tube = tubes[Math.floor(Math.random() * tubes.length)];
+      const cavY = H * (0.1 + Math.random() * 0.5); // upper half (where tension breaks)
+      cavitations.push({ x: tube.x, y: cavY, age: 0, maxAge: 600 });
+    }
+  }
+}
+
+// Visual cavitation markers
+let cavitations = [];
+
+function draw(time) {
+  if (!running) return;
+
+  ctx.fillStyle = 'rgba(10, 8, 6, 0.15)';
+  ctx.fillRect(0, 0, W, H);
+
+  const tension = 1 - mouseY;
+
+  // Draw tubes
+  for (const tube of tubes) {
+    const wobble = Math.sin(time * 0.001 * tube.wobbleFreq + tube.phase) * tube.wobbleAmp;
+
+    // Tube color shifts with tension: calm blue-green → stressed amber
+    const r = Math.floor(40 + tension * 80);
+    const g = Math.floor(80 + (1 - tension) * 40 - tension * 30);
+    const b = Math.floor(100 + (1 - tension) * 50 - tension * 60);
+    const alpha = 0.15 + tension * 0.15;
+
+    ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    ctx.lineWidth = tube.width;
+    ctx.beginPath();
+
+    for (let y = 0; y <= H; y += 4) {
+      const t = y / H;
+      const xWobble = wobble * Math.sin(t * Math.PI * 2 + time * 0.0005);
+      const x = tube.x + xWobble;
+      if (y === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+
+  // Draw droplets rising
+  for (let i = droplets.length - 1; i >= 0; i--) {
+    const d = droplets[i];
+    d.y -= d.speed * (0.5 + tension * 1.5); // tension pulls water up faster
+    d.tensionPhase += d.tensionFreq * 0.02;
+
+    const tubeWobble = Math.sin(d.y / H * Math.PI * 2 + time * 0.0005) * d.tube.wobbleAmp;
+    const tensionWobble = Math.sin(d.tensionPhase) * tension * 3;
+    const x = d.tube.x + tubeWobble + tensionWobble;
+
+    // Droplet gets brighter as it rises (approaching transpiration)
+    const heightFrac = 1 - (d.y / H);
+    const brightness = 0.4 + heightFrac * 0.6;
+
+    ctx.beginPath();
+    ctx.arc(x, d.y, d.size, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(160, 200, 220, ${d.alpha * brightness})`;
+    ctx.fill();
+
+    // Remove if off screen
+    if (d.y < -10) droplets.splice(i, 1);
+  }
+
+  // Draw cavitation bursts
+  for (let i = cavitations.length - 1; i >= 0; i--) {
+    const c = cavitations[i];
+    c.age++;
+    const progress = c.age / c.maxAge;
+    const radius = 3 + progress * 20;
+    const alpha = (1 - progress) * 0.6;
+
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, radius, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(255, 200, 140, ${alpha})`;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Inner bright point
+    if (progress < 0.1) {
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, 2, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255, 240, 200, ${(1 - progress * 10) * 0.8})`;
+      ctx.fill();
+    }
+
+    if (c.age >= c.maxAge) cavitations.splice(i, 1);
+  }
+
+  // Spawn new droplets
+  if (Math.random() < 0.3 + tension * 0.5) {
+    spawnDroplet();
+  }
+
+  // Depth indicator
+  ctx.fillStyle = `rgba(196, 168, 130, 0.15)`;
+  ctx.font = '11px Georgia';
+  ctx.textAlign = 'right';
+
+  const labels = [
+    { y: H * 0.05, text: 'canopy — transpiration' },
+    { y: H * 0.35, text: 'trunk — tension' },
+    { y: H * 0.7, text: 'heartwood' },
+    { y: H * 0.95, text: 'roots — absorption' },
+  ];
+  for (const label of labels) {
+    ctx.fillText(label.text, W - 20, label.y);
+  }
+
+  updateAudio(time);
+  requestAnimationFrame(draw);
+}
+
+// Input
+document.addEventListener('mousemove', (e) => {
+  mouseY = e.clientY / H;
+  mouseX = e.clientX / W;
+});
+
+document.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  mouseY = e.touches[0].clientY / H;
+  mouseX = e.touches[0].clientX / W;
+}, { passive: false });
+
+document.getElementById('start').addEventListener('click', () => {
+  document.getElementById('start').style.display = 'none';
+  initAudio();
+  running = true;
+  resize();
+  requestAnimationFrame(draw);
+});
+
+window.addEventListener('resize', () => { if (running) resize(); });
+</script>
+</body>
+</html>

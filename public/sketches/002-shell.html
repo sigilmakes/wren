@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>shell</title>
+<style>
+  body {
+    margin: 0;
+    background: #0d0d0d;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    overflow: hidden;
+    font-family: Georgia, serif;
+  }
+  #shell {
+    width: 200px;
+    height: 140px;
+    border-radius: 50%;
+    background: radial-gradient(ellipse at 40% 40%, #2a1f14, #0d0906);
+    box-shadow: 
+      inset 0 0 60px rgba(0,0,0,0.8),
+      0 0 40px rgba(30, 20, 10, 0.3);
+    transition: box-shadow 0.5s;
+    position: relative;
+  }
+  #shell.resonating {
+    box-shadow: 
+      inset 0 0 60px rgba(60,40,20,0.4),
+      0 0 80px rgba(60, 40, 20, 0.2);
+  }
+  #hint {
+    position: absolute;
+    bottom: 30px;
+    color: rgba(120, 90, 60, 0.2);
+    font-size: 13px;
+    font-style: italic;
+    user-select: none;
+    transition: opacity 2s;
+  }
+</style>
+</head>
+<body>
+<div id="shell"></div>
+<div id="hint">touch the shell</div>
+<script>
+const AC = new AudioContext();
+const shell = document.getElementById('shell');
+const hint = document.getElementById('hint');
+let active = false;
+let nodes = [];
+
+// the inside of a shell: resonant frequencies, 
+// breath-like noise, slow beating between close harmonics
+function startResonance() {
+  if (active) return;
+  active = true;
+  if (AC.state === 'suspended') AC.resume();
+  hint.style.opacity = '0';
+  shell.classList.add('resonating');
+
+  const master = AC.createGain();
+  master.gain.value = 0;
+  master.gain.linearRampToValueAtTime(0.15, AC.currentTime + 3);
+  master.connect(AC.destination);
+
+  // fundamental resonance — low, warm
+  const fund = 82; // E2, gut string territory
+  
+  // pairs of slightly detuned oscillators = beating
+  const harmonics = [
+    { ratio: 1,    gain: 0.18, detune: 0.7 },   // fundamental
+    { ratio: 2,    gain: 0.12, detune: 1.2 },   // octave
+    { ratio: 3,    gain: 0.06, detune: 0.9 },   // fifth above
+    { ratio: 4.02, gain: 0.04, detune: 1.5 },   // slightly sharp double octave
+    { ratio: 5,    gain: 0.03, detune: 0.5 },   // major third above
+    { ratio: 7.1,  gain: 0.015, detune: 2.0 },  // inharmonic — the shell isn't perfect
+  ];
+
+  harmonics.forEach(h => {
+    const freq = fund * h.ratio;
+    
+    // oscillator 1
+    const osc1 = AC.createOscillator();
+    osc1.type = 'sine';
+    osc1.frequency.value = freq;
+    
+    // oscillator 2 — slightly detuned for beating
+    const osc2 = AC.createOscillator();
+    osc2.type = 'sine';
+    osc2.frequency.value = freq + h.detune;
+    
+    const g = AC.createGain();
+    g.gain.value = h.gain;
+    
+    osc1.connect(g);
+    osc2.connect(g);
+    g.connect(master);
+    
+    osc1.start();
+    osc2.start();
+    
+    nodes.push(osc1, osc2, g);
+  });
+
+  // breath noise — filtered, very quiet, like air moving inside
+  const bufSize = AC.sampleRate * 4;
+  const buf = AC.createBuffer(1, bufSize, AC.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) {
+    data[i] = (Math.random() * 2 - 1);
+  }
+  const noise = AC.createBufferSource();
+  noise.buffer = buf;
+  noise.loop = true;
+  
+  const breathFilter = AC.createBiquadFilter();
+  breathFilter.type = 'bandpass';
+  breathFilter.frequency.value = fund * 2;
+  breathFilter.Q.value = 3;
+  
+  // modulate the breath with a slow LFO
+  const breathLfo = AC.createOscillator();
+  breathLfo.type = 'sine';
+  breathLfo.frequency.value = 0.15; // very slow breathing
+  const breathLfoGain = AC.createGain();
+  breathLfoGain.gain.value = 200;
+  breathLfo.connect(breathLfoGain);
+  breathLfoGain.connect(breathFilter.frequency);
+  breathLfo.start();
+  
+  const breathGain = AC.createGain();
+  breathGain.gain.value = 0.008;
+  
+  noise.connect(breathFilter);
+  breathFilter.connect(breathGain);
+  breathGain.connect(master);
+  noise.start();
+  
+  nodes.push(noise, breathFilter, breathLfo, breathLfoGain, breathGain);
+
+  // slow swell — the shell resonates more over time
+  const swellLfo = AC.createOscillator();
+  swellLfo.type = 'sine';
+  swellLfo.frequency.value = 0.07; // ~14 second cycle
+  const swellGain = AC.createGain();
+  swellGain.gain.value = 0.04;
+  swellLfo.connect(swellGain);
+  swellGain.connect(master.gain);
+  swellLfo.start();
+  
+  nodes.push(swellLfo, swellGain, master);
+}
+
+function stopResonance() {
+  if (!active) return;
+  active = false;
+  shell.classList.remove('resonating');
+  
+  // fade out over 4 seconds
+  const master = nodes[nodes.length - 1];
+  if (master && master.gain) {
+    master.gain.linearRampToValueAtTime(0, AC.currentTime + 4);
+  }
+  
+  const toStop = [...nodes];
+  nodes = [];
+  
+  setTimeout(() => {
+    toStop.forEach(n => {
+      try { n.stop?.(); } catch(e) {}
+      try { n.disconnect(); } catch(e) {}
+    });
+  }, 4500);
+}
+
+// hold to resonate, release to stop
+shell.addEventListener('mousedown', startResonance);
+shell.addEventListener('touchstart', (e) => { e.preventDefault(); startResonance(); });
+document.addEventListener('mouseup', stopResonance);
+document.addEventListener('touchend', stopResonance);
+
+// or just click to toggle
+let toggleMode = false;
+shell.addEventListener('click', () => {
+  if (!toggleMode) {
+    toggleMode = true;
+    return; // first click already started it
+  }
+  if (active) stopResonance();
+  else startResonance();
+});
+</script>
+</body>
+</html>

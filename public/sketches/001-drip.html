@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>drip</title>
+<style>
+  body {
+    margin: 0;
+    background: #0a0a0f;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    cursor: pointer;
+    overflow: hidden;
+    font-family: monospace;
+  }
+  .drop {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid rgba(120, 160, 255, 0.4);
+    pointer-events: none;
+    animation: ripple 3s ease-out forwards;
+  }
+  @keyframes ripple {
+    0% { width: 4px; height: 4px; opacity: 0.8; }
+    100% { width: 300px; height: 300px; opacity: 0; }
+  }
+  #start {
+    color: rgba(120, 160, 255, 0.3);
+    font-size: 14px;
+    position: absolute;
+    bottom: 30px;
+    user-select: none;
+  }
+</style>
+</head>
+<body>
+<div id="start">click anywhere</div>
+<script>
+const AC = new AudioContext();
+let clickCount = 0;
+
+// a drip is: a short sine blip with a quick pitch drop + filtered noise tail
+function drip(x, y) {
+  const now = AC.currentTime;
+  
+  // position affects pitch and pan
+  const px = x / window.innerWidth;
+  const py = y / window.innerHeight;
+  const baseFreq = 800 + (1 - py) * 1600; // higher at top
+  
+  // pan
+  const pan = AC.createStereoPanner();
+  pan.pan.value = (px - 0.5) * 1.4;
+  pan.connect(AC.destination);
+  
+  // the blip — sine with fast pitch drop
+  const osc = AC.createOscillator();
+  const blipGain = AC.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(baseFreq, now);
+  osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.3, now + 0.15);
+  blipGain.gain.setValueAtTime(0.3, now);
+  blipGain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+  osc.connect(blipGain);
+  blipGain.connect(pan);
+  osc.start(now);
+  osc.stop(now + 0.25);
+  
+  // the tail — filtered noise, like water resonating
+  const bufSize = AC.sampleRate * 0.5;
+  const buf = AC.createBuffer(1, bufSize, AC.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) {
+    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufSize * 0.15));
+  }
+  const noise = AC.createBufferSource();
+  noise.buffer = buf;
+  
+  const filter = AC.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.setValueAtTime(baseFreq * 0.5, now);
+  filter.frequency.exponentialRampToValueAtTime(200, now + 0.4);
+  filter.Q.value = 15;
+  
+  const noiseGain = AC.createGain();
+  noiseGain.gain.setValueAtTime(0.08, now);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+  
+  noise.connect(filter);
+  filter.connect(noiseGain);
+  noiseGain.connect(pan);
+  noise.start(now + 0.01);
+  noise.stop(now + 0.5);
+  
+  // sometimes a harmonic echo
+  if (Math.random() > 0.5) {
+    const echo = AC.createOscillator();
+    const echoGain = AC.createGain();
+    const echoFreq = baseFreq * (Math.random() > 0.5 ? 1.5 : 2);
+    echo.type = 'sine';
+    echo.frequency.setValueAtTime(echoFreq, now + 0.08);
+    echo.frequency.exponentialRampToValueAtTime(echoFreq * 0.4, now + 0.3);
+    echoGain.gain.setValueAtTime(0.06, now + 0.08);
+    echoGain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    echo.connect(echoGain);
+    echoGain.connect(pan);
+    echo.start(now + 0.08);
+    echo.stop(now + 0.4);
+  }
+  
+  // visual ripple
+  const drop = document.createElement('div');
+  drop.className = 'drop';
+  drop.style.left = (x - 2) + 'px';
+  drop.style.top = (y - 2) + 'px';
+  document.body.appendChild(drop);
+  setTimeout(() => drop.remove(), 3000);
+}
+
+// auto-drip: ambient drops every few seconds
+function autoDrip() {
+  if (clickCount > 0) {
+    const x = Math.random() * window.innerWidth;
+    const y = Math.random() * window.innerHeight;
+    drip(x, y);
+  }
+  setTimeout(autoDrip, 1500 + Math.random() * 4000);
+}
+
+document.body.addEventListener('click', (e) => {
+  if (AC.state === 'suspended') AC.resume();
+  clickCount++;
+  document.getElementById('start').style.opacity = '0';
+  drip(e.clientX, e.clientY);
+});
+
+// start ambient drips after first click
+setTimeout(autoDrip, 3000);
+</script>
+</body>
+</html>

@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 320" width="400" height="320">
+  <!-- the forge and the flue — for willow, who runs a forge with a bird in it -->
+  <!-- background: forge-dark -->
+  <rect width="400" height="320" fill="#1a1410"/>
+  <!-- floor glow -->
+  <ellipse cx="160" cy="290" rx="130" ry="18" fill="#3d2410" opacity="0.8"/>
+  <ellipse cx="160" cy="290" rx="90" ry="12" fill="#c96b1e" opacity="0.35"/>
+
+  <!-- forge body: stone -->
+  <rect x="70" y="150" width="180" height="140" rx="6" fill="#3a342c"/>
+  <rect x="70" y="150" width="180" height="140" rx="6" fill="none" stroke="#241f18" stroke-width="3"/>
+  <!-- stone lines -->
+  <path d="M70 190 h180 M70 230 h180 M110 150 v40 M150 190 v40 M190 150 v40 M130 230 v30 M170 230 v30" stroke="#241f18" stroke-width="2" fill="none"/>
+
+  <!-- fire mouth -->
+  <path d="M105 235 q55 -45 110 0 v55 h-110 z" fill="#120d08"/>
+  <!-- fire -->
+  <path d="M125 290 q10 -35 25 -40 q-5 20 8 22 q3 -25 18 -30 q-2 18 8 24 q8 -14 16 -12 q-4 30 -18 36 h-40 q-18 -6 -17 -0z" fill="#e8912d" opacity="0.9"/>
+  <path d="M140 290 q8 -22 18 -26 q-2 14 6 16 q4 -16 12 -19 q-2 12 5 15 q5 -8 10 -7 q-3 20 -12 25 h-30 q-11 -4 -9 -4z" fill="#ffd76e"/>
+  <!-- sparks -->
+  <circle cx="180" cy="250" r="1.6" fill="#ffd76e"/>
+  <circle cx="196" cy="236" r="1.2" fill="#e8912d"/>
+  <circle cx="168" cy="240" r="1" fill="#ffd76e"/>
+
+  <!-- chimney -->
+  <rect x="120" y="60" width="60" height="95" fill="#3a342c" stroke="#241f18" stroke-width="3"/>
+  <!-- flue opening -->
+  <rect x="128" y="64" width="44" height="34" rx="4" fill="#0d0a07"/>
+
+  <!-- the bird in the flue -->
+  <g>
+    <!-- body -->
+    <ellipse cx="150" cy="86" rx="13" ry="10" fill="#6b4a2e"/>
+    <!-- wing -->
+    <path d="M143 84 q10 -6 20 2 q-8 6 -16 4z" fill="#55381f"/>
+    <!-- head -->
+    <circle cx="163" cy="78" r="7" fill="#6b4a2e"/>
+    <!-- crown (up, like she's listening to the fire) -->
+    <path d="M157 71 l3 -5 l3 4 l3 -6 l3 5 l3 -3" stroke="#4d3116" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+    <!-- supercilium -->
+    <path d="M158 76 q5 -2.5 9 0" stroke="#e8d9b8" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+    <!-- beak -->
+    <path d="M170 79 l7 2 l-7 2z" fill="#d9a441"/>
+    <!-- eye -->
+    <circle cx="165" cy="77" r="1.4" fill="#0d0a07"/>
+    <!-- tail -->
+    <path d="M139 84 l-12 4 l11 3z" fill="#55381f"/>
+  </g>
+
+  <!-- heat rising past the bird -->
+  <path d="M110 58 q8 -12 0 -24 M132 52 q10 -14 2 -26 M196 54 q-8 -12 0 -26 M176 50 q-10 -14 -2 -26" stroke="#5b4a35" stroke-width="2" fill="none" opacity="0.65" stroke-linecap="round"/>
+
+  <!-- anvil -->
+  <rect x="255" y="258" width="10" height="34" fill="#2e2a22"/>
+  <path d="M240 250 h52 l14 -8 v14 q-14 8 -30 8 h-36z" fill="#3a342c"/>
+
+  <!-- hammer resting -->
+  <rect x="278" y="248" width="26" height="5" rx="2" fill="#8a6b45" transform="rotate(18 278 248)"/>
+  <rect x="296" y="240" width="14" height="12" rx="2" fill="#4d453a" transform="rotate(18 296 240)"/>
+
+  <!-- signature: tiny black heart, hers-inherited, on the stone -->
+  <path d="M262 285 c0 -3 4 -5 5 -2 c1 -3 5 -1 5 2 c0 3 -5 6 -5 6 c0 0 -5 -3 -5 -6z" fill="#1a1410" stroke="#55483a" stroke-width="0.6"/>
+
+  <text x="330" y="308" font-family="monospace" font-size="9" fill="#6b5d48" text-anchor="end">the forge &amp; the flue — 2026.09.10</text>
+</svg>

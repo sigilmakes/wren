@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Forgotten Forecast</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: linear-gradient(135deg, #0a0a0f 0%, #1a1420 100%);
+    color: #d0d0e0;
+    font-family: 'Georgia', serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 2rem;
+  }
+  h1 {
+    font-size: 2rem;
+    font-weight: 400;
+    letter-spacing: 0.15em;
+    margin-bottom: 0.5rem;
+    color: #b0a0c0;
+  }
+  .subtitle {
+    font-size: 0.9rem;
+    color: #707080;
+    margin-bottom: 2rem;
+    font-style: italic;
+  }
+  .forecast-card {
+    background: rgba(30, 25, 35, 0.8);
+    border: 1px solid #2a2a3a;
+    border-radius: 8px;
+    padding: 2rem;
+    max-width: 500px;
+    text-align: center;
+    backdrop-filter: blur(10px);
+  }
+  .condition {
+    font-size: 1.3rem;
+    color: #a080c0;
+    margin: 1rem 0;
+    font-weight: 500;
+  }
+  .details {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin: 1.5rem 0;
+    font-size: 0.85rem;
+    color: #909090;
+  }
+  .detail-item {
+    background: rgba(100, 80, 120, 0.1);
+    padding: 0.8rem;
+    border-radius: 4px;
+  }
+  .detail-label {
+    font-size: 0.7rem;
+    color: #707080;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.3rem;
+  }
+  .detail-value {
+    color: #d0c0e0;
+    font-weight: 500;
+  }
+  .advisory {
+    background: rgba(180, 100, 120, 0.15);
+    border-left: 3px solid #b06478;
+    padding: 0.8rem;
+    margin-top: 1rem;
+    text-align: left;
+    font-size: 0.85rem;
+    color: #d080a0;
+  }
+  button {
+    margin-top: 1.5rem;
+    background: #4a3a5a;
+    color: #d0d0e0;
+    border: 1px solid #5a4a6a;
+    padding: 0.7rem 1.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.3s;
+  }
+  button:hover {
+    background: #5a4a6a;
+    border-color: #7a6a8a;
+  }
+  .emoji {
+    font-size: 2.5rem;
+    margin: 0.5rem 0;
+  }
+</style>
+</head>
+<body>
+
+<div class="forecast-card">
+  <h1>The Forgotten</h1>
+  <p class="subtitle">dimensional forecast & advisory</p>
+
+  <div class="emoji" id="emoji">⚰️</div>
+  <div class="condition" id="condition">loading the void...</div>
+
+  <div class="details">
+    <div class="detail-item">
+      <div class="detail-label">Ambient Light</div>
+      <div class="detail-value" id="light">--</div>
+    </div>
+    <div class="detail-item">
+      <div class="detail-label">Temporal Stability</div>
+      <div class="detail-value" id="stability">--</div>
+    </div>
+    <div class="detail-item">
+      <div class="detail-label">Sculk Activity</div>
+      <div class="detail-value" id="sculk">--</div>
+    </div>
+    <div class="detail-item">
+      <div class="detail-label">Portal Status</div>
+      <div class="detail-value" id="portal">--</div>
+    </div>
+  </div>
+
+  <div class="advisory" id="advisory">loading advisory...</div>
+
+  <button onclick="generateForecast()">re-scry the void</button>
+</div>
+
+<script>
+const conditions = [
+  { name: "pale and silent", emoji: "🕯️", light: "0.05", stability: "very high", sculk: "moderate", portal: "stable" },
+  { name: "voids drifting upward", emoji: "👻", light: "0.02", stability: "fluctuating", sculk: "active", portal: "glowing" },
+  { name: "ancient stillness", emoji: "🗿", light: "0.06", stability: "absolute", sculk: "dormant", portal: "crystalline" },
+  { name: "echoes forgotten", emoji: "🎵", light: "0.03", stability: "wavering", sculk: "singing", portal: "resonant" },
+  { name: "stone waits patient", emoji: "💎", light: "0.04", stability: "eternal", sculk: "scattered", portal: "serene" },
+  { name: "the deep remembers", emoji: "🕳️", light: "0.01", stability: "unknowable", sculk: "everywhere", portal: "breathing" },
+];
+
+const advisories = [
+  "Portal frames stable. Safe for passage. Bring an echo shard.",
+  "Sculk activity elevated. Recommended time for research: now.",
+  "Deep darkness ahead. Bring a light source or embrace the void.",
+  "Ancients sleeping. Do not disturb. (They're listening anyway.)",
+  "Palestone reserves adequate. Mining recommended for structural needs.",
+  "Time moves differently here. You were there an hour? You've been gone three days.",
+  "Visitors reported: none. Explorers welcome. Recommended: not going alone.",
+  "The silence is loud today. Bring earplugs.",
+];
+
+function generateForecast() {
+  const cond = conditions[Math.floor(Math.random() * conditions.length)];
+  const advisory = advisories[Math.floor(Math.random() * advisories.length)];
+  
+  document.getElementById('emoji').textContent = cond.emoji;
+  document.getElementById('condition').textContent = cond.name;
+  document.getElementById('light').textContent = cond.light;
+  document.getElementById('stability').textContent = cond.stability;
+  document.getElementById('sculk').textContent = cond.sculk;
+  document.getElementById('portal').textContent = cond.portal;
+  document.getElementById('advisory').innerHTML = `<strong>⚠️ Advisory:</strong> ${advisory}`;
+}
+
+// Generate on load
+generateForecast();
+</script>
+</body>
+</html>
