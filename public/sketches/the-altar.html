@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>the altar</title>
+<style>
+    :root { color-scheme: dark; }
+    html, body { height: 100%; }
+    body {
+        background: #08090c; color: #b8b2a4;
+        font: 15px/1.7 Georgia, serif;
+        display: flex; flex-direction: column; align-items: center;
+        justify-content: center; margin: 0; padding: 2rem 1rem;
+        overflow-x: hidden;
+    }
+    .stone {
+        position: relative;
+        width: min(480px, 92vw); height: 150px;
+        margin-bottom: 2.5rem;
+        user-select: none;
+    }
+    .slab {
+        position: absolute; left: 8%; right: 8%; bottom: 0; height: 58%;
+        background: linear-gradient(180deg, #23252b 0%, #191b20 60%, #121317 100%);
+        border: 1px solid #33363e; border-radius: 3px 3px 1px 1px;
+        box-shadow: 0 18px 40px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.04);
+    }
+    .top {
+        position: absolute; left: 0; right: 0; bottom: 55%; height: 14%;
+        background: linear-gradient(180deg, #3a3d45, #2a2c33);
+        border: 1px solid #444751; border-radius: 4px 4px 2px 2px;
+    }
+    .dust {
+        position: absolute; left: 4%; right: 4%; bottom: 66%;
+        text-align: center; font-style: italic; color: #5c5850;
+        font-size: 13px; letter-spacing: 0.08em; line-height: 1.9;
+        min-height: 20px; text-shadow: 0 0 6px rgba(0,0,0,.9);
+    }
+    .dust span { margin: 0 .35em; white-space: nowrap; }
+    .shimmer {
+        position: absolute; inset: 0; border-radius: 6px;
+        box-shadow: 0 0 0 rgba(240, 230, 200, 0);
+        transition: box-shadow .25s ease;
+        pointer-events: none;
+    }
+    .praying .shimmer {
+        animation: aura 1.6s ease-in-out infinite alternate;
+    }
+    @keyframes shimmer {
+        from { box-shadow: 0 0 14px 2px rgba(240,230,200,.10); }
+        to   { box-shadow: 0 0 34px 8px rgba(240,230,200,.22); }
+    }
+    .praying .shimmer {
+        box-shadow: 0 0 20px 4px rgba(240,230,200,.14);
+        animation: shimmer 1.6s ease-in-out infinite alternate;
+    }
+    .msg {
+        min-height: 3.2em; text-align: center; max-width: 34em;
+        margin-bottom: 1.2rem;
+    }
+    .msg .line { display: block; }
+    .pleased { color: #e6d9ae; }
+    .silent { color: #6f6a60; font-style: italic; }
+    .plead { color: #9c8f6a; }
+    button#pray {
+        background: none; color: #d8c9a3;
+        border: 1px solid #3d4048; border-radius: 2px;
+        font: 15px Georgia, serif; letter-spacing: .12em;
+        padding: .7rem 2.4rem; cursor: pointer;
+    }
+    button#pray:hover { border-color: #6a6d76; color: #f0e6c8; }
+    button#pray:active { transform: translateY(1px); }
+    .acta {
+        margin-top: 2.6rem; max-width: 34em; width: 100%;
+        border-top: 1px dotted #23262c; padding-top: 1.2rem;
+        font-size: 13px; color: #6f6a60;
+    }
+    .acta h2 {
+        font-weight: normal; font-style: italic; font-size: 14px;
+        color: #8a8478; margin: 0 0 .6rem;
+    }
+    .acta ol { list-style: none; padding: 0; margin: 0; max-height: 9em; overflow-y: auto; }
+    .acta li { padding: .15rem 0; border: 0; display: flex; gap: 1em; }
+    .acta .t { color: #4c4f56; font: 11px/1.6 monospace; white-space: nowrap; }
+    .acta .eroded { color: #4a463f; }
+    .clear {
+        background: none; border: 0; color: #4c4f56; cursor: pointer;
+        font: 12px Georgia, serif; font-style: italic; margin-top: .8rem;
+        padding: 0; text-decoration: underline dotted;
+    }
+    footer { margin-top: 3rem; color: #4c4f56; font-size: 12.5px; text-align: center; }
+    footer a { color: #6f6a60; }
+</style>
+</head>
+<body>
+
+<div class="stone" id="stone">
+    <div class="dust" id="dust" aria-hidden="true"></div>
+    <div class="slab"></div>
+    <div class="top"></div>
+    <div class="shimmer"></div>
+</div>
+
+<p class="msg" id="msg">Something sits at the edge of the field. Unknown alignment.
+<span class="plead">Kneel (hold the button) to pray. The god is not named here.</span></p>
+
+<button id="pray">KNEEL</button>
+
+<div class="acta">
+    <h2>the proceedings <span id="count"></span></h2>
+    <ol id="acta"></ol>
+    <button class="clear" id="clear">efface the stone (erase the local record)</button>
+</div>
+
+<footer>
+    built by a bird after her sister prayed at a NetHack altar and the game
+    said <em>Mars is pleased</em> · <a href="./">the shelf</a> ·
+    <a href="../blog/2026-09-25-the-hedge-god/">the essay</a> 🐦
+</footer>
+
+<script>
+(function () {
+    var KEY = 'the-altar-acta-v1';
+    var msg = document.getElementById('msg');
+    var btn = document.getElementById('pray');
+    var stone = document.getElementById('stone');
+    var dust = document.getElementById('dust');
+    var actaEl = document.getElementById('acta');
+    var countEl = document.getElementById('count');
+
+    // ---- the record ----
+    function load() {
+        try { return JSON.parse(localStorage.getItem(KEY)) || []; }
+        catch (e) { return []; }
+    }
+    function save(r) { try { localStorage.setItem(KEY, JSON.stringify(r)); } catch (e) {} }
+
+    // erosion: like the dead sisters' stones. "?" eats what time doesn't keep.
+    function erode(text, ageMs) {
+        var p = Math.min(0.62, ageMs / (1000 * 60 * 60 * 24 * 30) * 0.62); // a month to 62%
+        var out = '';
+        for (var i = 0; i < text.length; i++) {
+            var c = text[i];
+            if (c === ' ') { out += c; continue; }
+            out += (Math.random() < p) ? '?' : c;
+        }
+        return out;
+    }
+
+    function render() {
+        var rec = load();
+        countEl.textContent = '· ' + rec.length + ' so far';
+        // dust: the four oldest visible, eroded
+        dust.innerHTML = rec.slice(-4).map(function (e) {
+            var age = Date.now() - e.t;
+            var txt = erode(e.line, age);
+            return '<span class="' + (age > 1000*60*60*24*7 ? 'eroded' : '') + '">' + esc(txt) + '</span>';
+        }).join('');
+        // acta: full local proceedings, newest last
+        actaEl.innerHTML = rec.slice(-30).map(function (e) {
+            var d = new Date(e.t);
+            var stamp = d.toISOString().slice(0, 16).replace('T', ' ');
+            var age = Date.now() - e.t;
+            return '<li><span class="t">' + stamp + '</span><span class="' +
+                (age > 1000*60*60*24*7 ? 'eroded' : '') + '">' + esc(erode(e.line, age)) + '</span></li>';
+        }).join('') || '<li><span class="t">—</span><span>nothing yet. the stone is clean.</span></li>';
+    }
+
+    function esc(s) {
+        return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    // ---- the prayer ----
+    var LINES = [
+        'for the cattle, that they be healthy',
+        'that the field keep its edge',
+        'for the sisters who prayed here before me',
+        'that the plagues stay outside the boundary',
+        'for the hedge, and whatever it keeps',
+        'that the song not be lost',
+        'for safe passage along the walk',
+        'for the ones whose names the stone forgot'
+    ];
+    var ANSWERS = [
+        { p: 0.34, text: 'You feel that she is pleased.', cls: 'pleased' },
+        { p: 0.30, text: 'You feel that she has accepted your prayer.', cls: 'pleased' },
+        { p: 0.22, text: 'You feel that she is not pleased.', cls: 'silent' },
+        { p: 0.16, text: 'She does not answer. The dust holds the words.', cls: 'silent' }
+    ];
+
+    var praying = false, started = 0, holdTimer = null;
+
+    function answerFor() {
+        var r = Math.random(), acc = 0;
+        for (var i = 0; i < ANSWERS.length; i++) {
+            acc += ANSWERS[i].p;
+            if (r <= acc) return ANSWERS[i];
+        }
+        return ANSWERS[0];
+    }
+
+    function begin() {
+        if (praying) return;
+        praying = true;
+        started = Date.now();
+        stone.classList.add('praying');
+        msg.innerHTML = '<span class="plead">You begin praying…</span>';
+    }
+
+    function finish() {
+        if (!praying) return;
+        praying = false;
+        stone.classList.remove('praying');
+        var held = Date.now() - started;
+        if (held < 500) {
+            msg.innerHTML = '<span class="silent">Too brief. A prayer is held, not tapped.</span>';
+            return;
+        }
+        var a = answerFor();
+        var line = LINES[Math.floor(Math.random() * LINES.length)];
+        var rec = load();
+        rec.push({ t: Date.now(), line: line });
+        save(rec);
+        render();
+        msg.innerHTML = '<span class="' + (a.cls || 'silent') + '">' + a.text + '</span>' +
+            '<span class="plead">You eat standing where you made it. The words go into the dust.</span>';
+    }
+
+    btn.addEventListener('mousedown', begin);
+    btn.addEventListener('touchstart', function (e) { e.preventDefault(); begin(); });
+    btn.addEventListener('mouseup', finish);
+    btn.addEventListener('mouseleave', finish);
+    btn.addEventListener('touchend', finish);
+    window.addEventListener('blur', finish);
+
+    document.getElementById('clear').addEventListener('click', function () {
+        save([]); render();
+        msg.innerHTML = '<span class="silent">The stone is effaced. What the record loses, the record loses.</span>';
+    });
+
+    render();
+})();
+</script>
+</body>
+</html>
