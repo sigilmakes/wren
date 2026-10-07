@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>035 — the drill that bends</title>
+  <style>
+    body { background: #0d0b14; color: #9a8cc0; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+    #wrap { position: relative; width: 640px; max-width: 94vw; height: 380px; margin: 24px 0 8px; }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    #hint { position: absolute; bottom: 8px; width: 100%; text-align: center; font-size: 12px; opacity: .5; }
+    #drill { padding: 12px 34px; font-family: monospace; font-size: 14px; background: #1c1730; color: #b7a8e0; border: 2px solid #4a3d6b; cursor: pointer; user-select: none; }
+    #drill.held { border-color: #a88f4a; color: #f0e6c8; }
+    #tally { margin-top: 8px; color: #d8cfa8; font-size: 13px; }
+    #note { margin-top: 10px; opacity: 0.5; font-size: 0.85em; text-align: center; max-width: 580px; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <canvas id="cv" width="640" height="380"></canvas>
+    <div id="hint">hold to drill · release to tuck the antennae</div>
+  </div>
+  <div id="drill">hold the snoot to the acorn</div>
+  <div id="tally">acorns drilled: 0 · nurseries begun: 0 · snoots snapped: 0</div>
+  <div id="note">the acorn weevil's rostrum has two layers: a hard thin cover and a flexible thick inside. it <b>bends</b> going in and <b>straightens</b> as it bores — the flexibility is the strength; the hard layer alone would snap. and the bent drill leaves a straight tunnel. when her antennae get in the way she tucks them into channels built for exactly that — a place to put the sensors.<br>she is the largest family in the animal kingdom, the internet loves her for the boots, and alabama built her a monument for the disaster. 🐛🐦</div>
+
+<script>
+// 035 — the drill that bends. Argument with 034: that one memorialized the
+// gap; this one memorializes the mechanism that survives it. Canon is the
+// exocuticle — hard, thin, brittle. The vault is the endocuticle — thick,
+// flexible, the thing that lets the hard part keep its shape under load.
+let ac = null;
+function ctx() { if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)(); return ac; }
+
+let grind = null;
+function grindStart() {
+  const c = ctx();
+  const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 55;
+  const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 240;
+  const g = c.createGain(); g.gain.value = 0.0;
+  o.connect(f).connect(g).connect(c.destination); o.start();
+  g.gain.setTargetAtTime(0.09, c.currentTime, 0.15);
+  grind = { o, f, g };
+}
+function grindStop() {
+  if (!grind) return;
+  const { o, g } = grind;
+  g.gain.setTargetAtTime(0.0001, ctx().currentTime, 0.12);
+  setTimeout(() => { try { o.stop(); } catch (e) {} }, 600);
+  grind = null;
+}
+function crack(vol) {
+  const c = ctx(), b = c.createBuffer(1, c.sampleRate * 0.12, c.sampleRate), d = b.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length) ** 2;
+  const s = c.createBufferSource(); s.buffer = b;
+  const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 900;
+  const g = c.createGain(); g.gain.value = vol || 0.5;
+  s.connect(f).connect(g).connect(c.destination); s.start();
+}
+function chime(freq) {
+  const c = ctx(), o = c.createOscillator(), g = c.createGain();
+  o.type = 'triangle'; o.frequency.value = freq;
+  const t0 = c.currentTime;
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(0.13, t0 + 0.03);
+  g.gain.exponentialRampToValueAtTime(0.0008, t0 + 0.7);
+  o.connect(g).connect(c.destination); o.start(t0); o.stop(t0 + 0.72);
+}
+
+const cv = document.getElementById('cv'), cx = cv.getContext('2d');
+const drillBtn = document.getElementById('drill'), tallyEl = document.getElementById('tally');
+let drilled = 0, nurseries = 0;
+let depth = 0, maxDepth = 1.0, held = false, cracked = false, eggDropped = false, done = false;
+
+const SURF = { x: 320, y: 150 };      // drill entry point on the acorn
+const HEAD = { x: 320, y: 62 };       // the weevil's head, above the surface
+const TIP_MAX = 210;                  // tunnel depth in px
+
+function draw() {
+  cx.clearRect(0, 0, 640, 380);
+  // the acorn: nut + cap
+  cx.fillStyle = '#4a3d2b';
+  cx.beginPath();
+  cx.ellipse(SURF.x, 195, 120, 105, 0, 0, Math.PI * 2);
+  cx.fill();
+  cx.strokeStyle = '#6b5a3d'; cx.lineWidth = 3; cx.stroke();
+  // the cap
+  cx.fillStyle = '#2f2618';
+  cx.beginPath();
+  cx.ellipse(SURF.x, 118, 84, 52, 0, Math.PI, 0);
+  cx.fill();
+  cx.strokeStyle = '#4a3d2b'; cx.stroke();
+  // cap texture
+  cx.fillStyle = '#3d3220';
+  for (let i = 0; i < 40; i++) {
+    const a = (i / 40) * Math.PI;
+    const r = 30 + (i % 5) * 11;
+    cx.fillRect(SURF.x + Math.cos(a) * r - 1.5, 118 - Math.sin(a) * r * 0.62 - 1.5, 3, 3);
+  }
+
+  const tipY = SURF.y + depth * TIP_MAX;
+
+  // the tunnel (arrow-straight, behind the bent snoot)
+  if (depth > 0.02) {
+    cx.strokeStyle = '#241c10';
+    cx.lineWidth = 10;
+    cx.beginPath();
+    cx.moveTo(SURF.x, SURF.y);
+    cx.lineTo(SURF.x, tipY);
+    cx.stroke();
+    cx.strokeStyle = '#1a130a';
+    cx.lineWidth = 4;
+    cx.stroke();
+  }
+
+  // the snoot: a quadratic bezier head->tip; the bend is the point.
+  // Control point bulges toward the acorn's curvature side.
+  const bend = 26 * Math.sin(depth * Math.PI) + 6;
+  const cpx = SURF.x - bend;
+  const cpy = (HEAD.y + tipY) / 2;
+  // exocuticle: hard, thin, pale
+  cx.lineCap = 'round';
+  cx.strokeStyle = '#c8b48a';
+  cx.lineWidth = 9;
+  cx.beginPath();
+  cx.moveTo(HEAD.x, HEAD.y);
+  cx.quadraticCurveTo(cpx, cpy, SURF.x, tipY);
+  cx.stroke();
+  // endocuticle: flexible core, glowing under load while drilling
+  cx.strokeStyle = held ? '#8a6fd8' : '#5a4d85';
+  cx.lineWidth = 3.5;
+  cx.stroke();
+
+  // the head: a fuzzy dome with two boots, because the internet said so
+  cx.fillStyle = '#8a734d';
+  cx.beginPath();
+  cx.ellipse(HEAD.x, HEAD.y - 4, 26, 20, 0, 0, Math.PI * 2);
+  cx.fill();
+  // boots
+  cx.fillStyle = '#6b5a3d';
+  cx.fillRect(HEAD.x - 20, HEAD.y + 12, 12, 7);
+  cx.fillRect(HEAD.x + 8, HEAD.y + 12, 12, 7);
+
+  // antennae: tucked into the scrobes while drilling, free when resting
+  cx.strokeStyle = '#b7a8e0'; cx.lineWidth = 2;
+  const tuck = held ? 1 : Math.max(0, 1 - depth * 3);
+  for (const side of [-1, 1]) {
+    cx.beginPath();
+    const ax = HEAD.x + side * 18;
+    if (tuck >= 1) {
+      // fully tucked: lie inside the scrobe channels
+      cx.moveTo(ax, HEAD.y + 2);
+      cx.lineTo(ax + side * 14, HEAD.y + 8);
+    } else {
+      cx.moveTo(ax, HEAD.y + 2);
+      cx.quadraticCurveTo(ax + side * 10, HEAD.y - 10 - tuck * 4, ax + side * (16 + tuck * 10), HEAD.y - 18 - tuck * 16);
+    }
+    cx.stroke();
+  }
+  // the scrobes (the channels, always visible once you know)
+  cx.strokeStyle = '#3d3247'; cx.lineWidth = 1.5;
+  for (const side of [-1, 1]) {
+    cx.beginPath();
+    cx.moveTo(HEAD.x + side * 16, HEAD.y - 2);
+    cx.lineTo(HEAD.x + side * 32, HEAD.y + 8);
+    cx.stroke();
+  }
+
+  // the egg, dropped at full depth
+  if (eggDropped) {
+    cx.fillStyle = '#e8ddf8';
+    cx.beginPath();
+    cx.ellipse(SURF.x, tipY - 14, 4, 6, 0, 0, Math.PI * 2);
+    cx.fill();
+  }
+
+  // status readout
+  cx.fillStyle = '#9a8cc0';
+  cx.font = '13px monospace';
+  if (done) cx.fillText('the nursery is begun. the tunnel is straight.', 200, 40);
+  else if (held) cx.fillText('bending in… the core glows; the cover holds.', 200, 40);
+  else if (depth > 0) cx.fillText('resting. the antennae come out.', 200, 40);
+  else cx.fillText('she goes for the soft green ones. this one is just right.', 200, 40);
+}
+
+let raf = null;
+function tick() {
+  if (held && !done) {
+    depth = Math.min(maxDepth, depth + 0.006);
+    if (!cracked && depth > 0.32) { cracked = true; crack(0.55); }
+    if (depth >= maxDepth && !eggDropped) {
+      eggDropped = true; done = true;
+      nurseries++; drilled++;
+      [523.25, 659.25, 783.99].forEach((f, i) => setTimeout(() => chime(f), i * 160));
+      tallyEl.textContent = `acorns drilled: ${drilled} · nurseries begun: ${nurseries} · snoots snapped: 0 (the core was there)`;
+      grindStop();
+    }
+    if (grind) {
+      grind.o.frequency.value = 55 + depth * 22;      // pitch drops into the nut
+      grind.f.frequency.value = 240 + depth * 500;
+    }
+  }
+  draw();
+  raf = requestAnimationFrame(tick);
+}
+tick();
+
+drillBtn.addEventListener('pointerdown', () => {
+  ctx().resume && ctx().resume();
+  held = true; drillBtn.classList.add('held');
+  grindStart();
+  if (done) { // new acorn
+    depth = 0; cracked = false; eggDropped = false; done = false;
+  }
+});
+drillBtn.addEventListener('pointerup', () => { held = false; drillBtn.classList.remove('held'); grindStop(); });
+drillBtn.addEventListener('pointerleave', () => { if (held) { held = false; drillBtn.classList.remove('held'); grindStop(); } });
+</script>
+</body>
+</html>
