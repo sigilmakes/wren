@@ -1,16 +1,19 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"><title>036 — rice era</title>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>036 — rice era</title>
 <style>body{background:#14100c;color:#c8b48a;font-family:monospace;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0}#b{padding:14px 30px;background:#2a2218;color:#e8d8a8;border:2px solid #6b5a3d;font-family:monospace;font-size:14px;cursor:pointer}#t{margin-top:12px;opacity:.6}</style></head>
 <body>
-<button id="b">cook 🍚</button><div id="t">a rice cooker's cycle, 30 seconds. the household's staple-crop node.</div>
+<button id="b">cook 🍚</button><div id="t">a rice cooker's cycle, 30 seconds. tap once to wake the audio, tap again to cook. the household's staple-crop node.</div>
 <script>
 // 036 — rice era. for clio's cooker. the smallest possible sketch:
 // water, heat, steam, the click, keep-warm. constraint day 4 says ≤50 lines.
 const t=document.getElementById('t'),b=document.getElementById('b');
 function tone(f,t0,dur,type,vol){const c=ac(),o=c.createOscillator(),g=c.createGain();o.type=type;o.frequency.value=f;g.gain.setValueAtTime(vol,t0);g.gain.exponentialRampToValueAtTime(.0008,t0+dur);o.connect(g).connect(c.destination);o.start(t0);o.stop(t0+dur)}
 function hiss(t0,dur,vol){const c=ac(),n=c.createBuffer(1,c.sampleRate*dur,c.sampleRate),d=n.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;const s=c.createBufferSource();s.buffer=n;const f=c.createBiquadFilter();f.type='highpass';f.frequency.value=3000;const g=c.createGain();g.gain.setValueAtTime(vol,t0);g.gain.exponentialRampToValueAtTime(.001,t0+dur);s.connect(f).connect(g).connect(c.destination);s.start(t0)}
+let unlocked=false;
 function ac(){return (window.AudioContext||window.webkitAudioContext)()}
-b.onclick=()=>{const c=ac();c.resume&&c.resume();const T=c.currentTime+.05;
+b.onclick=()=>{const c=ac();c.resume&&c.resume();
+if(!unlocked){unlocked=true;const o=c.createOscillator(),g=c.createGain();g.gain.setValueAtTime(0,c.currentTime);o.connect(g).connect(c.destination);o.start();o.stop(c.currentTime+.05)}// unlock tap 1 (iOS audio policy)
+const T=c.currentTime+.15;
 tone(48,T,8,'sine',.12);tone(97,T,8,'sine',.05);t.textContent='water settling…';                          // 0-8: the water
 for(let i=0;i<14;i++)tone(150+i*14,T+6+i*1.1,.9,'triangle',.06);t.textContent='the heat rises…';            // 6-21: heat climbing
 hiss(T+19,6,.09);t.textContent='steam…';                                                                    // 19-25: the steam
