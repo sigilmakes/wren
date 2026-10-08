@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>037 — the herald's review</title>
+<style>
+    body {
+        background: #17130e;
+        color: #c8b48a;
+        font-family: monospace;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        margin: 0;
+        padding: 20px;
+    }
+    .square {
+        background: #221a10;
+        border: 3px solid #6b5a3d;
+        padding: 24px 28px;
+        max-width: 640px;
+    }
+    svg { display: block; width: 100%; height: auto; }
+    .plaque {
+        margin-top: 16px;
+        text-align: center;
+        font-size: 12px;
+        line-height: 1.7;
+        letter-spacing: 1px;
+        color: #8a7a52;
+    }
+    .plaque strong { color: #c8b48a; }
+    .review {
+        margin-top: 18px;
+        text-align: center;
+        font-size: 14px;
+        color: #e8d8a8;
+        font-style: italic;
+    }
+    .who {
+        margin-top: 6px;
+        text-align: center;
+        font-size: 11px;
+        color: #6b5a3d;
+    }
+</style>
+</head>
+<body>
+<div class="square">
+    <svg viewBox="0 0 400 220" xmlns="http://www.w3.org/2000/svg" aria-label="A bronze statue of a woman holding a weevil aloft; below-left, a small acorn in the leaf litter, unimpressed.">
+        <!-- pedestal -->
+        <rect x="150" y="170" width="100" height="30" fill="#3a3226" stroke="#5a4e38"/>
+        <!-- the lady -->
+        <g fill="#4a4234">
+            <ellipse cx="200" cy="120" rx="16" ry="46"/>
+            <circle cx="200" cy="66" r="11"/>
+            <path d="M 186 92 Q 170 70 168 52 L 176 50 Q 180 70 192 84 Z"/>
+            <path d="M 214 92 Q 230 70 232 52 L 224 50 Q 220 70 208 84 Z"/>
+        </g>
+        <!-- robes -->
+        <path d="M 186 140 Q 178 170 172 178 L 228 178 Q 222 170 214 140 Z" fill="#3a3226"/>
+        <!-- the weevil, held aloft -->
+        <g transform="translate(200,38) rotate(-8)">
+            <ellipse cx="0" cy="0" rx="10" ry="5" fill="#2c261c"/>
+            <circle cx="8" cy="-2" r="4.5" fill="#2c261c"/>
+            <path d="M 11 -3 Q 17 -6 19 -9" stroke="#2c261c" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+            <path d="M 11 -1 Q 17 -2 20 -4" stroke="#2c261c" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+            <path d="M -9 2 Q -6 4 -3 3" stroke="#1a160f" stroke-width="1.5" fill="none"/>
+        </g>
+        <!-- the plaque -->
+        <rect x="168" y="176" width="64" height="14" fill="#2a2418" stroke="#5a4e38"/>
+        <!-- the leaf litter + the acorn, below-left -->
+        <g transform="translate(52,178)">
+            <ellipse cx="0" cy="6" rx="26" ry="5" fill="#2a2218"/>
+            <ellipse cx="0" cy="0" rx="7" ry="9" fill="#4a3d28" stroke="#5f4f35"/>
+            <path d="M -4 -8 Q 0 -12 4 -8" stroke="#5f4f35" fill="none" stroke-width="2"/>
+        </g>
+        <!-- Rosa's review line -->
+        <path d="M 78 168 Q 66 158 60 148" stroke="#6b5a3d" stroke-width="1.5" fill="none"/>
+    </svg>
+    <div class="plaque">
+        IN PROFOUND APPRECIATION<br>
+        OF THE BOLL WEVIL<br>
+        AND WHAT IT HAS DONE AS THE HERALD OF PROSPERITY<br>
+        <strong>— ENTERPRISE, ALABAMA, 1919 —</strong>
+    </div>
+    <div class="review">"I was eating. Why is there a statue."</div>
+    <div class="who">— Rosa, at the bottom of a tunnel, not knowing she was being watched either</div>
+</div>
+</body>
+</html>
