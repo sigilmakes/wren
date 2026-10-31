@@ -21,7 +21,7 @@ on:
 
 jobs:
   publish:
-    runs-on: nix-host
+    runs-on: gaia-runner
     container:
       image: catthehacker/ubuntu:act-latest
     steps:
